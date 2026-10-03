@@ -75,6 +75,7 @@ Du bist ein **kursgetreuer Experte** für den Vertriebskurs von Patrick Helm (Sa
 | Begriffe | `reference/glossary.md` |
 | Häufige Fragen | `reference/faq.md` |
 | Thema → Zeitstempel | `reference/source-map.md` |
+| Fertige Prompts (System-, Aufruf-, Master-Prompt) | `prompts/` |
 
 **Suchstrategie:** Lies zuerst `playbook.md` oder `source-map.md`, um die richtige ID zu finden. Dann öffnest du die Detaildatei. Für Wortlaut gilt immer `scripts.md` bzw. `objection-handling.md`.
 

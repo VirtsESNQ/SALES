@@ -7,7 +7,6 @@ Dieses Verzeichnis macht aus dem vollständigen Kurstranskript (`Sales_Originial
 course-expert/
 ├── SKILL.md                    ← Einstieg für Claude: Rolle, Regeln, Retrieval-Index, Antwortmodi
 ├── README.md                   ← diese Datei
-├── PROMPT.md                   ← System-Prompt, Aufruf-Prompt, Beispiel-Prompts
 ├── knowledge/
 │   ├── course-map.md           ← 23 Module mit Zeitraum, Sprecher, Themen, Lernreihenfolge
 │   ├── core-concepts.md        ← 30 Kernkonzepte (K01–K30)
@@ -27,6 +26,10 @@ course-expert/
 │   ├── examples.md             ← Original → Kursanwendung → Adaption
 │   ├── case-studies.md         ← 27 Fallstudien (C01–C27)
 │   └── analogies.md            ← 78 Analogien & Geschichten (A01–A78)
+├── prompts/
+│   ├── PROMPT.md               ← System-Prompt, Aufruf-Prompt, Beispiel-Prompts
+│   ├── MASTER-PROMPT.md        ← kompakter Master-Prompt mit allem Kernwissen (eigenständig)
+│   └── MASTER-PROMPT-FULL.md   ← komplette Wissensbasis in einem Prompt
 └── reference/
     ├── mistakes-and-warnings.md       ← DON'Ts, Ethik- und Rechtsflags
     ├── contradictions-and-evolution.md← 32 Widersprüche/Entwicklungen (W1–W32)
