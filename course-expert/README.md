@@ -7,6 +7,7 @@ Dieses Verzeichnis macht aus dem vollständigen Kurstranskript (`Sales_Originial
 course-expert/
 ├── SKILL.md                    ← Einstieg für Claude: Rolle, Regeln, Retrieval-Index, Antwortmodi
 ├── README.md                   ← diese Datei
+├── PROMPT.md                   ← System-Prompt, Aufruf-Prompt, Beispiel-Prompts
 ├── knowledge/
 │   ├── course-map.md           ← 23 Module mit Zeitraum, Sprecher, Themen, Lernreihenfolge
 │   ├── core-concepts.md        ← 30 Kernkonzepte (K01–K30)
