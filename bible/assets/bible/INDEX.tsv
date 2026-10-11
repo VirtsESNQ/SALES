@@ -1,0 +1,81 @@
+file	book	verses
+01_Genesis.txt	Genesis	1533
+02_Exodus.txt	Exodus	1213
+03_Leviticus.txt	Leviticus	859
+04_Numbers.txt	Numbers	1288
+05_Deuteronomy.txt	Deuteronomy	959
+06_Joshua.txt	Joshua	658
+07_Judges.txt	Judges	618
+08_Ruth.txt	Ruth	85
+09_I_Samuel.txt	I Samuel	810
+10_II_Samuel.txt	II Samuel	695
+11_I_Kings.txt	I Kings	816
+12_II_Kings.txt	II Kings	719
+13_I_Chronicles.txt	I Chronicles	942
+14_II_Chronicles.txt	II Chronicles	822
+15_Ezra.txt	Ezra	280
+16_Nehemiah.txt	Nehemiah	406
+17_Esther.txt	Esther	167
+18_Job.txt	Job	1070
+19_Psalms.txt	Psalms	2461
+20_Proverbs.txt	Proverbs	915
+21_Ecclesiastes.txt	Ecclesiastes	222
+22_Song_of_Solomon.txt	Song of Solomon	117
+23_Isaiah.txt	Isaiah	1292
+24_Jeremiah.txt	Jeremiah	1364
+25_Lamentations.txt	Lamentations	154
+26_Ezekiel.txt	Ezekiel	1273
+27_Daniel.txt	Daniel	357
+28_Hosea.txt	Hosea	197
+29_Joel.txt	Joel	73
+30_Amos.txt	Amos	146
+31_Obadiah.txt	Obadiah	21
+32_Jonah.txt	Jonah	48
+33_Micah.txt	Micah	105
+34_Nahum.txt	Nahum	47
+35_Habakkuk.txt	Habakkuk	56
+36_Zephaniah.txt	Zephaniah	53
+37_Haggai.txt	Haggai	38
+38_Zechariah.txt	Zechariah	211
+39_Malachi.txt	Malachi	55
+40_I_Esdras.txt	I Esdras	448
+41_II_Esdras.txt	II Esdras	874
+42_Tobit.txt	Tobit	244
+43_Judith.txt	Judith	339
+44_Additions_to_Esther.txt	Additions to Esther	117
+45_Wisdom.txt	Wisdom	436
+46_Sirach.txt	Sirach	1392
+47_Baruch.txt	Baruch	213
+48_Prayer_of_Azariah.txt	Prayer of Azariah	68
+49_Susanna.txt	Susanna	64
+50_Bel_and_the_Dragon.txt	Bel and the Dragon	42
+51_Prayer_of_Manasses.txt	Prayer of Manasses	1
+52_I_Maccabees.txt	I Maccabees	924
+53_II_Maccabees.txt	II Maccabees	555
+54_Matthew.txt	Matthew	1071
+55_Mark.txt	Mark	678
+56_Luke.txt	Luke	1151
+57_John.txt	John	879
+58_Acts.txt	Acts	1007
+59_Romans.txt	Romans	433
+60_I_Corinthians.txt	I Corinthians	437
+61_II_Corinthians.txt	II Corinthians	257
+62_Galatians.txt	Galatians	149
+63_Ephesians.txt	Ephesians	155
+64_Philippians.txt	Philippians	104
+65_Colossians.txt	Colossians	95
+66_I_Thessalonians.txt	I Thessalonians	89
+67_II_Thessalonians.txt	II Thessalonians	47
+68_I_Timothy.txt	I Timothy	113
+69_II_Timothy.txt	II Timothy	83
+70_Titus.txt	Titus	46
+71_Philemon.txt	Philemon	25
+72_Hebrews.txt	Hebrews	303
+73_James.txt	James	108
+74_I_Peter.txt	I Peter	105
+75_II_Peter.txt	II Peter	61
+76_I_John.txt	I John	105
+77_II_John.txt	II John	13
+78_III_John.txt	III John	14
+79_Jude.txt	Jude	25
+80_Revelation_of_John.txt	Revelation of John	404
