@@ -219,7 +219,7 @@ const SCEN={
     name:'Ironbridge',year:'21st c.',place:'Fictional scenario',you:'Col. Mara Lind',sides:['Westmark','Vostrian Army'],diff:'Hard',era:'modern',
     teaser:'A fictional modern battle. Your thin brigade must hold a river crossing against an armoured assault until reinforcements arrive.',
     objective:'Hold the crossing until reinforcements arrive',
-    brief:['The enemy can only cross at the bridge and the shallow ford. Kill them where they bunch up.','Tanks beat tanks and vehicles. Anti-tank teams beat tanks. Infantry is only safe in the town, where it gets cover.','Your artillery reaches across the whole map but cannot fire at targets right next to it.','Drones hunt your tanks. IFV autocannons and riflemen can shoot them down.'],
+    brief:['The enemy can only cross at the bridge and the shallow ford. Kill them where they bunch up.','Tanks beat tanks and vehicles. Anti-tank teams beat tanks. Infantry is only safe in the town, where it gets cover.','Your artillery reaches most of the field, but only hits what your troops or drones can see, and cannot fire at targets right next to it.','Drones hunt your tanks. IFV autocannons and riflemen can shoot them down.'],
     river:{y:x=>riverY(x),cross:[{x0:478,x1:528},{x0:795,x1:855}]},
     deploy:360,leth:0.42,pmod:{q:1.3},timer:{t:180,label:'Reinforcements',win:'Reinforcements arrive with the crossing still in your hands. The assault has failed.'},
     terrain(x,y){if(Math.abs(y-riverY(x))<18){if(x>478&&x<528)return 'bridge';if(x>795&&x<855)return 'ford';return 'river'}
@@ -1413,7 +1413,7 @@ Object.assign(SPACING,{recon:[14,12],mlrs:[16,14],mortar:[8,7],manpads:[9,8],sni
   mage:[6,5],elf:[4.6,4.2],dragon:[25,22],golem:[12,11],undead:[3.6,3.4],griffin:[9,9]});
 Object.assign(TYPE_NOTE,{recon:'Recon vehicles. Fast, see into woods and buildings from far away.',mlrs:'Rocket artillery. Saturates a huge area from far behind the line.',mortar:'Mortars. Indirect fire for infantry, short reach.',manpads:'Shoulder-fired air defence. Kills helicopters, drones and jets.',sniper:'Snipers. Hidden until they shoot; break enemy morale.',jet:'Strike jets. Cross the map in one turn and bomb anything on the ground.',
   galley:'Oared war galleys. Fast and agile: ram from the side.',hgalley:'Heavy galleys. Packed with marines for boarding.',sotl:'Ships of the line. Floating fortresses with heavy broadsides.',frigate:'Frigates. Faster and lighter, good at picking off damaged ships.',fireship:'Fireships. Sailed into the enemy and set ablaze.',
-  ddg:'Destroyers. Missiles against ships and aircraft alike.',ffg:'Frigates. Hunt submarines with sonar and torpedoes.',sub:'Submarines. Invisible until they fire; torpedoes break ships.',carrier:'Carrier group. Its air wing strikes anything on the map.',fac:'Missile boats. Cheap, fast, dangerous in numbers.',
+  ddg:'Destroyers. Missiles against ships and aircraft alike.',ffg:'Frigates. Hunt submarines with sonar and torpedoes.',sub:'Submarines. Invisible until they fire; torpedoes break ships.',carrier:'Carrier group. Its air wing strikes far beyond any ship’s guns.',fac:'Missile boats. Cheap, fast, dangerous in numbers.',
   fighter:'Starfighters. Hunt bombers and other small craft.',bomber:'Torpedo bombers. Small, but their torpedoes break capital ships.',corvette:'Flak corvettes. Shred fighters and bombers.',sdd:'Destroyers. Railguns at long range against big ships.',bship:'Battleships. The heaviest beams in the fleet, slow.',scarrier:'Carriers. Launch strike craft against anything.',
   brawler:'Piston brawlers. Steam fists that smash a firing line on contact.',fusil:'Aether fusiliers. Air rifles fed from brass tanks: the steady line.',tesla:'Tesla engineers. Arc lances that seize clockwork and cook boilers.',clock:'Clockwork grenadiers. Never panic, shrug off rifles, stop dead under Tesla arcs.',walker:'Steam walkers. Two legs and a field gun; too big for buildings.',iclad:'Land ironclads. Naval guns on wheels: the heaviest fire, the slowest thing.',zep:'Dirigible gunships. Bombs from above; ornithopters tear them open.',orni:'Ornithopters. Fast flapping scouts that hunt dirigibles.',
   dread:'Dreadnoughts. All-big-gun battleships: the battle line.',bcr:'Battlecruisers. Battleship guns, cruiser armour, high speed.',lcr:'Light cruisers. The fleet\'s eyes; chase off destroyers.',tbd:'Destroyers. Dash in under the big guns with torpedoes.',uboat:'U-boats. Invisible until they fire; torpedoes cripple battleships.',
@@ -1844,7 +1844,7 @@ addScen('trafalgar',{group:'naval',theme:'sail',eraKey:'sail',foe:'Villeneuve',n
 const KEST={theatre:'sea',era:'navy',seed:2031,islands:[{cx:230,cy:320,rx:120,ry:55},{cx:600,cy:300,rx:70,ry:40},{cx:860,cy:350,rx:110,ry:50},{cx:420,cy:400,rx:36,ry:22}],hills:[],woods:[],towns:[],river:null,hillNames:[]};
 addScen('kestrel',{group:'naval',theme:'navy',eraKey:'navy',foe:'The Northern Fleet',name:'Strait of Kestrel',year:'21st c.',place:'Fictional scenario',you:'Rear Adm. Sona Reyes',sides:['Coalition','Northern Fleet'],diff:'Hard',era:'navy',gen:KEST,
   teaser:'Missiles, submarines and an island chain. Find the enemy before it finds you.',objective:'Break the Northern Fleet',deploy:420,leth:.6,pmod:{q:1.1},
-  brief:['Submarines are invisible until they fire. Your ASW frigates find them; keep the carrier behind the frigates.','Destroyers fire missiles at ships and aircraft alike. Missile boats are cheap and fast: do not let a pack reach your carrier.','The carrier’s air wing can hit anything on the map. Protect it and it wins the battle for you.'],
+  brief:['Submarines are invisible until they fire. Your ASW frigates find them; keep the carrier behind the frigates.','Destroyers fire missiles at ships and aircraft alike. Missile boats are cheap and fast: do not let a pack reach your carrier.','The carrier’s air wing strikes far beyond any ship’s guns. Protect it and it wins the battle for you.'],
   player:[{name:'Task force command',type:'gen',x:500,y:600,men:500},{name:'Carrier Meridian',type:'carrier',x:500,y:560,men:3000},
     {name:'Destroyer Halyard',type:'ddg',x:360,y:500,men:600},{name:'Destroyer Keel',type:'ddg',x:640,y:500,men:600},{name:'Frigate Wren',type:'ffg',x:250,y:470,men:400},{name:'Frigate Plover',type:'ffg',x:760,y:470,men:400},
     {name:'Submarine Nautilus',type:'sub',x:520,y:440,men:260},{name:'Strike pair Viper',type:'jet',x:500,y:620,men:500}],
@@ -1899,7 +1899,7 @@ addScen('harbor',{group:'modern',theme:'modern',eraKey:'city',foe:'The harbour g
 const STEEL={theatre:'land',era:'modern',seed:3317,hills:[{cx:260,cy:300,rx:150,ry:70,h:26},{cx:780,cy:330,rx:150,ry:70,h:26}],hillNames:['Hill 220','Hill 241'],woods:[{cx:500,cy:330,rx:80,ry:50},{cx:120,cy:520,rx:90,ry:60},{cx:880,cy:140,rx:90,ry:60}],towns:[{x0:440,x1:560,y0:140,y1:200,block:true}],river:null};
 addScen('steel',{group:'modern',theme:'modern',eraKey:'modern',foe:'The Red Corps',name:'Steel Corridor',year:'21st c.',place:'Fictional scenario',you:'Col. Anya Kohl',sides:['Westmark','Red Corps'],diff:'Medium',era:'modern',gen:STEEL,
   teaser:'A full combined-arms clash: recon, rocket artillery, jets, drones and armour on open ground.',objective:'Break the Red Corps',deploy:390,leth:.62,pmod:{q:1.25},
-  brief:['Recon sees into woods and towns from far away. Without it, your guns shoot blind at hidden units.','Rocket artillery covers the whole map but is fragile. Keep it back, keep MANPADS near it.','Jets reach anything in one turn, but enemy air defence kills them fast. Kill the air defence first.'],
+  brief:['Recon sees into woods and towns from far away. Without it, your guns shoot blind at hidden units.','Rocket artillery reaches deep but only hits what recon, drones or troops can see. It is fragile: keep it back, keep MANPADS near it.','Jets reach anything in one turn, but enemy air defence kills them fast. Kill the air defence first.'],
   player:[{name:'Corps HQ',type:'gen',x:500,y:610,men:200,armor:'light'},{name:'Tank battalion',type:'tank',x:380,y:470,men:900},{name:'Tank battalion II',type:'tank',x:620,y:470,men:900},{name:'Mech infantry',type:'ifv',x:260,y:500,men:900},
     {name:'Mech infantry II',type:'ifv',x:740,y:500,men:900},{name:'Recon squadron',type:'recon',x:500,y:430,men:500},{name:'Rocket battery',type:'mlrs',x:500,y:620,men:600},{name:'Air defence',type:'sam',x:600,y:590,men:500},{name:'MANPADS',type:'manpads',x:420,y:570,men:200},{name:'Strike pair',type:'jet',x:500,y:630,men:500},{name:'Attack drones',type:'drone',x:380,y:600,men:400}],
   enemy:[{name:'Corps HQ',type:'gen',x:500,y:30,men:300,armor:'light',ai:A('general')},{name:'Tank brigade',type:'tank',x:350,y:150,men:1300,ai:A('advance',2)},{name:'Tank brigade II',type:'tank',x:650,y:150,men:1300,ai:A('advance',4)},
@@ -2023,6 +2023,64 @@ chooseTarget=function(b,u,foes,pref){if(pref)return _chooseTarget(b,u,foes,pref)
   for(const f of foes){const eff=R?(WEAP[R.w][f.armor]||0):(f.air?0:1);if(R&&eff<=0)continue;const d=dist(u,f);
     const sc=(MCODES[matchCode(u.type,f.type)].v*70)+(R?eff*90:0)-d*(R&&d<=R.range?.2:1)+(f.morale<40?40:0);if(sc>bs){bs=sc;best=f}}
   return best||_chooseTarget(b,u,foes,pref)};
+
+/* =====================================================================
+   ENGAGEMENT RULES (FC-021..023)
+   One rule, canEngage(), decides whether a unit can shoot a target: weapon vs armour, range,
+   minimum range, line of sight over the ground, and an observer for indirect fire. Orders (tbPlan),
+   defensive fire (tbOverwatch), the matchup tooltip, the unit card and the range ring all use it.
+   ===================================================================== */
+/* ranges tuned to the 1000-unit field: direct fire reaches 7-25% of the map width, so closing in,
+   flanking and using cover take real turns; long guns reach far but need someone to see the target */
+const RANGE_TUNE={arc:150,elf:190,mage:170,art:300,
+  minf:75,sniper:150,recon:100,ifv:160,tank:220,atgm:240,manpads:200,mortar:220,howz:650,mlrs:750,heli:260,sam:520,
+  walker:150,iclad:300,ffg:240,fac:240,tbd:240,lcr:340,sdd:320,scarrier:380,ddg:420,bship:420,bcr:470,dread:480,carrier:600};
+for(const k in RANGE_TUNE)if(TYPES[k]&&TYPES[k].ranged)TYPES[k].ranged.range=RANGE_TUNE[k];
+FLAG_GUN.dread.range=500;FLAG_GUN.navy.range=420;FLAG_GUN.space.range=400;
+/* field guns fire over open sights: they need line of sight like any direct-fire weapon */
+INDIRECT.delete('cannon');
+/* indirect fire lands where an observer can see: the gun itself, a unit nearby, or a scout from further away */
+const OBSERVED=new Set(['shell','rocket','mortar','siege']);
+const ENG_WHY={armor:'Its weapons cannot hurt this target',range:'Out of range',min:'Too close for its guns',hill:'No line of sight: a hill is in the way',woods:'No line of sight: woods are in the way',buildings:'No line of sight: buildings are in the way',observer:'No observer: none of your units can see the target'};
+const eyeH=u=>VEH.has(u.type)?4:(u.type==='cav'||u.type==='gen')?5:3;
+/* line of sight over the real ground (the same heights the 3D view draws): hills, woods and buildings block it */
+function losInfo(b,a,c){
+  const th=theatreOf(b.s);if(a.air||c.air||th==='sea'||th==='space')return{ok:true};
+  const d=dist(a,c);if(d<24)return{ok:true};
+  const id=b.id,h0=heightAt(id,a.x,a.y)+eyeH(a),h1=heightAt(id,c.x,c.y)+eyeH(c),n=Math.ceil(d/6),seg=d/n;let woods=0,town=0;
+  for(let k=1;k<n;k++){const t=k/n,dd=t*d,x=a.x+(c.x-a.x)*t,y=a.y+(c.y-a.y)*t;
+    if(dd>14&&d-dd>14&&heightAt(id,x,y)>h0+(h1-h0)*t+2.5)return{ok:false,why:'hill'};
+    if(dd<18||d-dd<18)continue;const tt=terr(b,x,y);
+    if(tt==='woods'){woods+=seg;if(woods>24)return{ok:false,why:'woods'}}
+    else if(tt==='town'){town+=seg;if(town>(b.s.city?14:24))return{ok:false,why:'buildings'}}}
+  return{ok:true}}
+function observerRange(b,o){const r=spotR(b.s.era)*1.6;return o.type==='drone'||o.type==='orni'?r*2.2:(o.scout||o.type==='sniper')?r*1.7:r}
+/* who on the shooter's side can see the target for an indirect-fire weapon (the shooter at p counts too) */
+function observerFor(b,a,p,c){
+  const sees=o=>Math.hypot(o.x-c.x,o.y-c.y)<observerRange(b,o)&&(o.air||losInfo(b,o,c).ok);
+  if(sees(p))return a;
+  for(const o of b.units){if(o===a||o.side!==a.side||o.gone||o.rout)continue;if(sees(o))return o}
+  return null}
+/* can unit a hit target t, firing from its current spot or from p={x,y}? returns {ok, why, d} */
+function canEngage(b,a,t,p){
+  const R=TYPES[a.type].ranged;if(!R)return{ok:false,why:'armor'};
+  if(!(WEAP[R.w][t.armor]>0))return{ok:false,why:'armor'};
+  const s=p?Object.assign({},a,{x:p.x,y:p.y}):a,d=dist(s,t);
+  if(d>R.range)return{ok:false,why:'range',d};if(d<(R.min||0))return{ok:false,why:'min',d};
+  if(OBSERVED.has(R.w)&&!a.air){const o=observerFor(b,a,s,t);return o?{ok:true,d,obs:o}:{ok:false,why:'observer',d}}
+  if(!INDIRECT.has(R.w)){const l=losInfo(b,s,t);if(!l.ok)return{ok:false,why:l.why,d}}
+  return{ok:true,d}}
+/* the turn engine's own line-of-sight question, now answered by the shared rule */
+tbLOS=function(b,a,c){const R=TYPES[a.type].ranged;if(!R)return true;const e=canEngage(b,a,c);return e.ok||e.why==='range'||e.why==='min'||e.why==='armor'};
+/* indirect fire without an observer holds still instead of driving the guns at the target */
+const _tbPlanEng=tbPlan;
+tbPlan=function(b,u){const pl=_tbPlanEng(b,u);
+  if(pl&&pl.noLos&&pl.t){const R=TYPES[u.type].ranged;if(R&&OBSERVED.has(R.w))return{pts:[[u.x,u.y]],used:0,attack:false,ranged:true,t:pl.t,noObs:true}}
+  return pl};
+/* the enemy prefers targets its guns can actually engage */
+const _chooseTargetEng=chooseTarget;
+chooseTarget=function(b,u,foes,pref){const R=TYPES[u.type].ranged;if(R&&!pref){const ok=foes.filter(f=>canEngage(b,u,f).ok);if(ok.length)return _chooseTargetEng(b,u,ok,pref)}return _chooseTargetEng(b,u,foes,pref)};
+Object.assign(TYPE_NOTE,{howz:'Howitzers. Reach most of the field, but only hit what one of your units can see.',mlrs:'Rocket artillery. Saturates a wide area far behind the line, if someone spots the target.',mortar:'Mortars. Indirect fire for infantry; needs eyes on the target.'});
 
 /* ---------- starships: two factions, six classes, built from primitives with vertex colours ----------
    Concord (player): white ceramic, gold ribs, blue light. Long, calm, cathedral-like.
@@ -3050,7 +3108,7 @@ function drawOverlay(now){
   const g=myGeneral();if(g&&!g.rout)circleOnGround(c,g.x,g.y,g.aura,'rgba(214,166,58,.45)','rgba(214,166,58,.05)',[3,5]);
   if(G.mode==='plan')for(const id of G.sel){const u=byId(b,id);if(u&&!u.gone&&!u.rout&&u.side==='P'){const mr=tbMoveRange(b,u);circleOnGround(c,u.x,u.y,mr,'rgba(120,180,245,.85)','rgba(76,142,230,.10)');
     const lp=P(u.x,u.y-mr,2);if(lp.vis&&G.sel.size<=3){c.font='600 11px "IBM Plex Mono",monospace';c.textAlign='center';c.lineWidth=3;c.strokeStyle='rgba(8,10,9,.85)';c.strokeText('move '+mtr(mr),lp.x,lp.y-4);c.fillStyle='#BFDBFA';c.fillText('move '+mtr(mr),lp.x,lp.y-4)}}}
-  for(const id of G.sel){const u=byId(b,id);if(u&&TYPES[u.type].ranged&&!u.gone){const R=TYPES[u.type].ranged;circleOnGround(c,u.x,u.y,Math.min(R.range,900),'rgba(214,166,58,.5)','rgba(214,166,58,.04)',[6,5])}}
+  for(const id of G.sel){const u=byId(b,id);if(u&&TYPES[u.type].ranged&&!u.gone){const R=TYPES[u.type].ranged;circleOnGround(c,u.x,u.y,R.range,'rgba(214,166,58,.5)','rgba(214,166,58,.04)',[6,5]);if(R.min)circleOnGround(c,u.x,u.y,R.min,'rgba(255,107,90,.6)','rgba(255,107,90,.05)',[3,4])}}
   // who is shooting whom
   for(const u of live){if(!u.firing||u.rout||u.firing.gone||hidden(u.firing))continue;if(u.side!=='P'&&u.firing.side!=='P')continue;
     const a=P(u.x,u.y,3),t=P(u.firing.x,u.firing.y,3);if(!a.vis||!t.vis)continue;c.strokeStyle=u.side==='P'?'rgba(111,168,230,.5)':'rgba(240,138,60,.5)';c.lineWidth=1;c.setLineDash([2,4]);c.beginPath();c.moveTo(a.x,a.y);c.lineTo(t.x,t.y);c.stroke();c.setLineDash([])}
@@ -3167,7 +3225,7 @@ function unitCard(u,enemy){
   const rows=(list,cls)=>list.map(t=>{const m=MCODES[enemy?matchCode(t,u.type):matchCode(u.type,t)];return `<div class="mrow ${cls}"><span class="msym" style="background:${m.bg};color:${m.fg}">${m.sym}</span><span class="ubadge" data-type="${t}" data-side="${enemy?'P':'E'}" data-size="26"></span><span class="mname">${TYPES[t].label}</span></div>`}).join('');
   const v=t=>MCODES[enemy?matchCode(t,u.type):matchCode(u.type,t)].v;
   const good=foes.filter(t=>v(t)>=3).sort((a,c)=>v(c)-v(a)),bad=foes.filter(t=>v(t)<=1).sort((a,c)=>v(a)-v(c));
-  let best='';if(!enemy&&u.type!=='gen'){let bt=null,bs=-1;for(const o of b.units){if(o.side===u.side||o.gone||o.rout)continue;const d=dist(u,o),rg=R?R.range:140;if(d>rg*1.15)continue;const sc=MCODES[matchCode(u.type,o.type)].v*1000-d;if(sc>bs){bs=sc;bt=o}}
+  let best='';if(!enemy&&u.type!=='gen'){let bt=null,bs=-1;for(const o of b.units){if(o.side===u.side||o.gone||o.rout)continue;const d=dist(u,o),rg=R?R.range:140;if(R?!canEngage(b,u,o).ok:d>rg*1.15)continue;const sc=MCODES[matchCode(u.type,o.type)].v*1000-d;if(sc>bs){bs=sc;bt=o}}
     if(bt)best=`<button type="button" class="besttgt" data-target="${bt.id}"><em>Best target in reach</em><b>${bt.name}</b><span>${MCODES[matchCode(u.type,bt.type)].label} · ${mtr(dist(u,bt))} · click here to attack</span></button>`}
   const mblock=enemy?`${good.length?`<div class="mhead">Dangerous to your</div>${rows(good,'g')}`:''}${bad.length?`<div class="mhead weak">Vulnerable to your</div>${rows(bad,'b')}`:''}`
     :`${good.length?`<div class="mhead">Good against</div>${rows(good,'g')}`:''}${bad.length?`<div class="mhead weak">Avoid</div>${rows(bad,'b')}`:''}${best}`;
@@ -3245,7 +3303,8 @@ function showTip(u,e){
   const tip=$('mtip'),sel=selUnits().filter(s=>s.type!=='gen');
   if(!u||u.side!=='E'||u.gone||!sel.length||G.mode==='over'){tip.hidden=true;return}
   const rows=sel.slice(0,4).map(a=>{const m=MCODES[matchCode(a.type,u.type)],back=MCODES[matchCode(u.type,a.type)],R=TYPES[a.type].ranged,d=dist(a,u);
-    const rng=R?(d<=R.range?`In range · ${mtr(d)} of ${mtr(R.range)}`:`Out of range · ${mtr(d)}, reach ${mtr(R.range)}`)+(tbSpotted(G.b,a.side,u)?'':' · hidden in cover, fire is blind until you get close'):`Melee · ${mtr(d)} away`;
+    const eg=R?canEngage(G.b,a,u):null;
+    const rng=R?(eg.ok?`In range · ${mtr(d)} of ${mtr(R.range)}${eg.obs&&eg.obs!==a?` · spotted by ${eg.obs.name}`:''}`:eg.why==='range'?`Out of range · ${mtr(d)}, reach ${mtr(R.range)}`:`${ENG_WHY[eg.why]} · ${mtr(d)}`)+(tbSpotted(G.b,a.side,u)?'':' · hidden in cover, fire is blind until you get close'):`Melee · ${mtr(d)} away`;
     let ex='';if(G.mode==='plan'){const pv=tbPreview(G.b,a,u);
       if(pv.reach)ex=`<span class="tx">This turn: they lose <b>~${lossTxt(u,pv.theyLose).trim()}</b> and ${Math.round(pv.theyMorale)}% morale${pv.youLose>=.5?` · you lose ~${lossTxt(a,pv.youLose).trim()}`:' · no losses for you'}</span>`;
       else{const n=Math.ceil(pathLen(tbPath(G.b,a,u.x,u.y))/Math.max(1,tbMoveRange(G.b,a)));ex=`<span class="tx far">Out of reach this turn · closes in ${Math.max(1,n-(TYPES[a.type].ranged?1:0))} turn(s)</span>`}}
