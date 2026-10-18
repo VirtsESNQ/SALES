@@ -1125,3 +1125,7 @@ body.th-dread .pw-turn::before{content:'';position:absolute;left:-26px;top:50%;w
 @media (max-width:640px){.form kbd{display:none}.form{padding:5px 7px}}
 .sbar{display:inline-block;vertical-align:middle;width:46px;height:5px;margin-left:6px;background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden}
 .sbar>i{display:block;height:100%}
+
+#game #ov-deploy .sheet{max-width:600px}
+#game .overlay.light .sheet .fogbtn{pointer-events:auto;font-size:13px;padding:0 12px}
+.fogbtn.off{opacity:.7}

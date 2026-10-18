@@ -4,7 +4,7 @@ module.exports=async(page,{check})=>{
   await page.evaluate(()=>start('steel'));await page.waitForTimeout(400);
   const r=await page.evaluate(()=>{
     const b=G.b,P=t=>b.units.find(u=>u.side==='P'&&u.type===t),E=t=>b.units.find(u=>u.side==='E'&&u.type===t);
-    const at=(u,x,y)=>{u.x=x;u.y=y;visDirty(b)};const out={};
+    const at=(u,x,y)=>{u.x=x;u.y=y;b.known={};visDirty(b)};const out={};
     const tank=P('tank'),foe=E('tank'),mlrs=P('mlrs'),recon=P('recon'),heli=E('heli'),eat=E('atgm');
     // park every other player unit in the far corner so they cannot observe
     for(const u of b.units)if(u.side==='P'&&u!==tank&&u!==mlrs)at(u,960,630);

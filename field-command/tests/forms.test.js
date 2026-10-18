@@ -61,12 +61,25 @@ module.exports=async(page,{check,shot})=>{
   }
   // ---- fog of war: a far enemy is hidden and cannot be picked; a scout next to it reveals it
   const fog=await page.evaluate(()=>{const b=G.b,e=b.units.find(u=>u.side==='E'&&!u.gone&&u.type!=='gen');
-    const sc0=new Map();for(const u of b.units){if(u.side==='P'){u.y=630;sc0.set(u,u.scout);u.scout=false}}e.x=500;e.y=20;e.revealed=null;visDirty(b);
+    const sc0=new Map();for(const u of b.units){if(u.side==='P'){u.y=630;sc0.set(u,u.scout);u.scout=false}}e.x=500;e.y=20;e.revealed=null;b.known={};visDirty(b);
     const hidden=hiddenFromPlayer(e),sh=b.units.find(u=>u.side==='P'&&TYPES[u.type].ranged&&WEAP[TYPES[u.type].ranged.w][e.armor]>0),tip=sh?canEngage(b,sh,e):{why:'unseen'};
-    const sc=b.units.find(u=>u.side==='P'&&!u.gone&&u.type!=='gen');sc.x=500;sc.y=90;visDirty(b);const seen=!hiddenFromPlayer(e);sc.y=630;for(const [u,v] of sc0)u.scout=v;visDirty(b);
-    return{hidden,why:tip.why,seen,rev:e.revealed,t:b.t,minD:Math.min(...b.units.filter(u=>u.side==="P"&&!u.gone).map(u=>dist(u,e)|0)),fogOff:!!b.fogOff}});
+    const sc=b.units.find(u=>u.side==='P'&&!u.gone&&u.type!=='gen');sc.x=500;sc.y=90;visDirty(b);const seen=!hiddenFromPlayer(e);sc.y=630;for(const [u,v] of sc0)u.scout=v;visDirty(b);const kept=!hiddenFromPlayer(e);
+    return{hidden,why:tip.why,seen,kept,rev:e.revealed,t:b.t,minD:Math.min(...b.units.filter(u=>u.side==="P"&&!u.gone).map(u=>dist(u,e)|0)),fogOff:!!b.fogOff}});
   console.log(JSON.stringify(fog));check(fog.hidden&&fog.why==='unseen','fog: an enemy nobody can see is hidden and refused as unseen');
   check(fog.seen,'fog: a friendly unit close by reveals it');
+  check(fog.kept,'fog: once discovered, the enemy stays revealed after the scout leaves');
+  // ---- fog toggle (deployment screen) and morale
+  const tg=await page.evaluate(()=>{start('cannae');const off0=G.b.fogOff;setFogPref(false);const r={off0,off:G.b.fogOff,label:$('b-fog').textContent};start('cannae');r.offNext=G.b.fogOff;setFogPref(true);r.on=!G.b.fogOff;r.vis=$('b-fog').offsetParent!==null;start('cannae');begin();G.speed=3;return r});
+  check(!tg.off0&&tg.off&&tg.offNext&&tg.on&&/OFF/.test(tg.label)&&tg.vis,'fog toggle: visible before battle; OFF disables fog, is remembered, turns back ON');
+  const mo=await page.evaluate(()=>{const b=G.b,P=b.units.filter(u=>u.side==='P'&&u.type!=='gen'),a=P[0],c=b.units.find(u=>u.side==='E'&&u.type===a.type)||b.units.find(u=>u.side==='E');
+    const fight=(ma,mc)=>{a.morale=ma;c.morale=mc;a.dmg=c.dmg=0;a.crowd=c.crowd=1;const keep=Math.random;Math.random=()=>.99;melee(b,a,c,1,5);Math.random=keep;return c.dmg};
+    const hi=fight(100,50),lo=fight(30,50);
+    const n=P[1],m0=(n.morale=80);a.x=n.x+40;a.y=n.y;a.dmg=a.men+1;a.mdmg=0;tbApply(b,[a]);const drop=m0-n.morale;
+    const w=P[2];w.morale=5;w.hitThisRound=false;w.contacts=[];w.order=null;tbEndRound(b);return{hi,lo,drop,waver:!!(w.order&&w.order.kind==='move'&&w.order.y>w.y),st:status(w)}});
+  console.log(JSON.stringify(mo));
+  check(mo.hi>mo.lo*1.3,'morale: the steadier unit inflicts clearly more in an otherwise equal fight');
+  check(mo.drop>4,`morale: a friendly unit destroyed nearby costs morale (${mo.drop.toFixed(1)})`);
+  check(mo.waver&&mo.st==='Wavering','morale: a wavering unit falls back toward its own lines');
   // ---- stall: a unit that makes no progress for two rounds drops the order with a message
   const st=await page.evaluate(()=>{const b=G.b,u=b.units.find(x=>x.side==='P'&&!x.gone&&!x.rout&&x.type!=='gen');u.order={kind:'move',x:u.x+200,y:u.y};u._od=null;u._stall=0;
     const ox=u.x,oy=u.y;for(let i=0;i<3&&u.order;i++){u.x=ox;u.y=oy;tbEndRound(b)}return{dropped:!u.order,blocked:!!u._blocked,msg:b.msgs.some(m=>/cannot reach/.test(m.text))}});

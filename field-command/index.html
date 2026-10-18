@@ -61,8 +61,8 @@
       </div>
     </div>
     <div class="howto">
-      <span><b>Drag from a unit</b> to give its order</span>
-      <span><b>Tap a unit, then tap</b> ground or enemy</span>
+      <span><b>Left click</b> selects · <b>right click</b> orders</span>
+      <span><b>Drag from a unit</b>, or tap it then tap the target</span>
       <span><b>Amber dot</b> = no orders yet</span>
       <span><b>Enter</b> ends your turn · <b>M</b> minimap</span>
     </div>
@@ -153,6 +153,7 @@
     <div class="overlay light" id="ov-deploy">
       <div class="sheet deploy">
         <p><b>Deploy.</b> Drag your units inside the blue zone to set up, then begin.</p>
+        <button id="b-fog" type="button" class="fogbtn" aria-pressed="true" title="Fog of war: you only see enemies your units have spotted (once spotted they stay revealed). Choose before the battle starts.">Fog of war: ON</button>
         <button class="primary" id="b-begin" type="button">Begin battle</button>
       </div>
     </div>
@@ -188,14 +189,18 @@
       <div>
         <h4>Controls</h4>
         <div class="keys">
+          <b>Left click</b><span>select a unit · <b>Shift</b> adds · drag a box for several · double-click selects every unit of that type in view</span>
+          <b>Right click</b><span>order: the ground to march, an enemy to attack · <b>Right drag</b> draws a battle line (position, frontage, facing)</span>
           <b>Drag a unit</b><span>pull an arrow to the ground to march, onto an enemy to attack</span>
-          <b>Tap</b><span>tap your unit, then tap the ground or an enemy. The unit is released after each order, so stray taps do nothing</span>
+          <b>Tap</b><span>on a touch screen: tap your unit, then tap the ground or an enemy</span>
+          <b>J</b><span>attack-move: advance and engage anything in reach on the way (or Ctrl + right click)</span>
+          <b>Shift 0–5</b><span>formation: custom · line · column · wedge · skirmish · hold. <b>[ ]</b> spacing · <b>&lt; &gt;</b> wheel the group</span>
           <b>Undo · Z</b><span>take back the last order</span>
           <b>N / Tab</b><span>jump to the next unit without orders (amber dot)</span>
           <b>Q W E X A</b><span>groups: 1 infantry · 2 ranged · 3 cavalry/armour · 4 artillery/support · all</span>
-          <b>Right drag</b><span>draw a battle line: position, frontage, facing</span>
           <b>Enter</b><span>end your turn · <b>Space</b> skips the animation</span>
-          <b>Wheel / pinch</b><span>zoom · two fingers or Space+drag pans · <b>, .</b> rotate</span>
+          <b>Camera</b><span>wheel/pinch zoom to the cursor · arrows or screen edge pan · middle drag or Space+drag pans · <b>Shift+middle drag</b> orbits · <b>, .</b> rotate · <b>PgUp PgDn</b> tilt · <b>L</b> focus selection · <b>Home</b> fit map</span>
+          <b>Fog of war</b><span>you only see enemies one of your units can see; faded markers show where they were last seen</span>
         </div>
       </div>
       <div><h4>Unit types</h4><div class="legend" id="legend"></div></div>

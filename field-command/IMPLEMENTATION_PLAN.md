@@ -10,11 +10,11 @@ This file is persistent project memory for the Ralph loop. Re-check the source b
 
 ## Core interaction
 
-- [ ] **FC-010 — Audit selection and orders** (`TODO`): verify click, shift-select, box select, double-click, group/wing selection, move, attack, halt, advance, charge, retreat, rally, and facing.
+- [x] **FC-010 — Audit selection and orders** (`DONE`, iteration 3): reworked mouse controls. Left click selects (Shift adds, box drag, double-click selects the same type in view). Left click on empty ground clears the selection and never gives an order. Right click orders: an enemy means attack, ground means move, Ctrl or J means attack-move. Right drag draws a battle line. Touch keeps tap-unit-then-tap-target. `tests/forms.test.js` drives real mouse events for select, deselect, right-click move and J attack-move. Halt, advance, charge, fall back and rally are unchanged (smoke-tested via turns only).
   - Acceptance: each action has one clear result; UI feedback matches the resulting state; camera gestures do not accidentally issue orders.
-- [ ] **FC-011 — Audit camera and coordinate transforms** (`TODO`): zoom, pan, rotation, fit-map, minimap navigation, canvas scaling, and 2D/3D coordinate conversion.
+- [~] **FC-011 — Audit camera and coordinate transforms** (`IN_PROGRESS`, iteration 3): the 3D camera now smooths zoom (`distT`), zooms toward the cursor (anchor), tilts (PgUp/PgDn, Shift+middle-drag orbit), glides on `centerOn`, edge-scrolls, and keeps the view centre when switching between 2D and 3D. `L` focuses the selection; `Home` fits the map. `tests/forms.test.js` checks in 2D that the right-click world point matches `vToWorld` within 10 units. Not yet tested: pointer-to-world under 3D rotation/tilt, minimap drag.
   - Acceptance: pointer-to-world conversion remains correct at different zooms/rotations and in both views.
-- [ ] **FC-012 — Improve order feedback** (`TODO`): display destination, facing, order state, blocked state, and selected-unit status clearly.
+- [~] **FC-012 — Improve order feedback** (`IN_PROGRESS`, iteration 3): unreachable slots answer "Cannot go there" or "No route there" at order time. A move that stalls for two rounds is dropped with a message and a red X at the blocked destination. The unit card shows formation (its trade-off as a tooltip), reforming, a suppression bar and PINNED status. Identical toasts are refreshed instead of stacked. Still missing: drawing the blocked sight line for a refused attack.
   - Acceptance: the player can understand why a selected unit is moving, stopped, unable to fire, or following another order.
 
 ## Simulation and scale
@@ -35,25 +35,39 @@ This file is persistent project memory for the Ralph loop. Re-check the source b
 
 ## Formations and movement
 
-- [ ] **FC-030 — Trace battle-line formation code** (`TODO`): find input handling, world-coordinate conversion, slot generation, movement orders, and facing.
-- [ ] **FC-031 — Shared formation preview and deployment** (`TODO`): use the same calculated slots for preview and confirmed orders.
+- [x] **FC-030 — Trace battle-line formation code** (`DONE`, iteration 3): one orders block replaced the old `issue`/`formationSlots`/`applyFormation` (see FC-031).
+- [x] **FC-031 — Shared formation preview and deployment** (`DONE`, iteration 3): `planGroupMove(sel,p,face,frontage,kind)` is the only slot planner. The drag preview (`previewMoves` in `drawOverlay`), right-click orders, drawn battle lines, formation buttons and wheeling (`rotateSel`) all call it; `commitMoves` turns slots into orders. This fixes a bug that predates this work: the pull-drag preview offset arrows from the dragged unit while the order used the group centroid. Test: preview slots equal committed orders (max offset 0.0).
   - Acceptance: line, diagonal, vertical, and rotated-camera cases produce the same preview and final arrangement.
-- [ ] **FC-032 — Add formation choices** (`TODO`): line, column, wedge, skirmish, defensive, subject to current unit types/era.
+- [x] **FC-032 — Add formation choices** (`DONE`, iteration 3): the `FORM` table holds line, column, wedge, skirmish and hold. `formsFor(u)` lists the drills each unit kind can use, `groupSlots` gives the geometry per drill, and `setForm` changes each unit's footprint.
+  - Simulation effects: movement (`tbMoveRange`), turning cost (`tbPlanRange`), outgoing and incoming fire and splash (`tbRangedHit`), melee and flank exposure (`melee`), charge shock (`tbMeleeHit`). Reforming costs 30% of the turn's movement.
+  - UI: formation bar (Shift+0–5), spacing with −/+ or [ ].
+  - Tests: geometry per drill, footprint, movement rates.
   - Acceptance: formations affect spacing, frontage, facing, movement, and/or combat in documented ways, not just labels.
-- [ ] **FC-033 — Prevent movement jams** (`TODO`): detect no-progress, handle obstacles/bounds, prevent infinite jitter and unit stacking.
+- [x] **FC-033 — Prevent movement jams** (`DONE`, iteration 3): `openGround` moves a slot to the nearest passable spot, or refuses it. `tbEndRound` drops a move that has made no progress for two rounds and reports it; melee, suppression, or an attack-move that is busy firing do not count as stalling. A group move keeps to its slowest member's pace (`o.grp`). Test: a stalled move is dropped, marked and reported.
   - Acceptance: valid destinations are reached where possible; impossible orders fail visibly and safely.
 
 ## Combat presentation
 
-- [ ] **FC-040 — Trace combat event lifecycle** (`TODO`): follow attack command through target choice, damage resolution, and rendering/audio feedback.
-- [ ] **FC-041 — Weapon-specific fire and impact feedback** (`TODO`): connect effects to actual shots and impacts; prevent duplicate damage or effects.
-- [ ] **FC-042 — Morale/suppression/routing feedback** (`TODO`): ensure visible states reflect simulation state and remain era-appropriate.
-- [ ] **FC-043 — Effect performance** (`TODO`): inspect allocations, pooling, cleanup, zoom-dependent detail, and large-army behaviour.
+- [x] **FC-040 — Trace combat event lifecycle** (`DONE`, iteration 3). The path of an attack:
+  1. Attack order, then `tbPlan`, then `tbStrike`.
+  2. `tbRangedHit` or `tbMeleeHit` adds damage to `dmg`/`mdmg`/`sdmg`; `tbApply` applies it once.
+  3. `shotFx` pushes effect records into `b.fx`, and the main loop ages them.
+  4. When a record goes live it calls `fxSound`, and in 3D `fx3spawn`. `fx3frame` draws projectiles from the record's progress; `drawFx` draws them in 2D.
+  Effects never feed back into the simulation.
+- [x] **FC-041 — Weapon-specific fire and impact feedback** (`DONE`, iteration 3): new three.js effects layer (the `FX3` block before the theatre environments). It uses pooled additive and alpha point-sprite particles, line segments for tracers and beams, shock rings and 3 pooled point lights.
+  - Musket volleys: flashes along the frontage and white black-powder smoke that hangs.
+  - Cannon: flash, large smoke cloud, shock ring and the ball in flight.
+  - Blasts: flash, fireball, smoke column, falling debris, dust ring, shock ring and a light flash.
+  - Also: tracers with impacts, missiles with smoke trails, shells with a trail and an incoming whistle, arrows, beams, orbs and wakes.
+  - Weapon-specific sounds are placed by distance and stereo pan (`sndPlace`). Camera shake is halved in 3D.
+  - Test: `tests/fx.test.js`; Ironbridge, Austerlitz and Agincourt produce particles within the pool caps.
+- [x] **FC-042 — Morale/suppression/routing feedback** (`DONE`, iteration 3): the unit card shows suppression (a bar, and PINNED) and the status "Pinned down"; a toast reports when a unit is pinned. In 3D, pinned figures crouch, front ranks level their weapons when firing, spearmen thrust in melee, and routing figures turn and run.
+- [~] **FC-043 — Effect performance** (`IN_PROGRESS`, iteration 3): fixed-size pools (2200 additive and 2400 alpha particles, 700 lines, 12 rings, 3 lights; smaller on low-end devices). The particle loop allocates nothing per frame, and emission drops at far zoom (`fx3lod`). The test measured at most 31 draw calls with post-processing off. Not measured on a real GPU: headless SwiftShader runs at about 1 fps for both the old and the new build, so frame-time comparisons here mean nothing.
 
 ## Models, animation, and rendering
 
 - [ ] **FC-050 — Audit 3D rendering costs** (`TODO`): inspect instancing, materials, geometry reuse, shadows, per-frame allocations, resource cleanup, and external dependencies.
-- [ ] **FC-051 — Improve troop/vehicle silhouettes and detail** (`TODO`): prioritize recognizability and consistent style over raw polygon count.
+- [~] **FC-051 — Improve troop/vehicle silhouettes and detail** (`IN_PROGRESS`, iteration 3): modern infantry carry packs, and guns and vehicles recoil when they fire. Fallen soldiers stay on the field (pooled, at most 1700, hidden at far zoom). Destroyed vehicles and guns leave wrecks that burn and smoke for a while. Not done: new merged geometry per era, a prone pose, horse gaits.
 - [ ] **FC-052 — Add/repair zoom-level detail** (`TODO`): strategic readability, tactical silhouettes, close-up animation/effects.
 - [ ] **FC-053 — Preserve fallback and mode switching** (`TODO`): verify 2D fallback and no resource leaks when toggling views or changing battles.
 
@@ -61,11 +75,21 @@ This file is persistent project memory for the Ralph loop. Re-check the source b
 
 - [ ] **FC-060 — Audit facing and flanking** (`TODO`): verify calculations use world-space orientation and are camera-independent.
 - [ ] **FC-061 — Audit morale, fatigue, cohesion, routing** (`TODO`): document existing state transitions and add regression tests before extending mechanics.
-- [ ] **FC-062 — Improve AI decisions** (`TODO`): identify concrete failure cases in target selection, regrouping, terrain use, flanking, and order churn.
-- [ ] **FC-063 — Add tactical mechanics only when justified** (`TODO`): spotting, suppression, command effects, or new unit roles only after the core loop works.
+- [x] **FC-062 — Improve AI decisions** (`DONE`, iteration 3): the AI plans only against units it can see (`sideSees`); otherwise it searches where the enemy was last seen. `aiTactics` adds role behaviour before target choice:
+  - guns that cannot hit a fast threat pull back; guns that can, fire on it;
+  - melee troops screen a threatened gun;
+  - shooters step back from approaching melee troops and look for cover when suppressed;
+  - cavalry rides for the flank or rear of engaged targets;
+  - badly shaken units without a scripted regroup fall back.
+  Target commitment: a unit switches only for a target at least 35% better. The scripted modes (general, escort, regroup, feint, waypoints) are untouched. Test: `tests/ai.test.js`.
+- [x] **FC-063 — Add tactical mechanics only when justified** (`DONE`, iteration 3).
+  - **Fog of war:** sight range per era and type, terrain line of sight, firing reveals a unit, last-seen ghosts. Hidden units cannot be picked or targeted.
+  - **Suppression** (`suppGain`): depends on weapon, armour, cover, formation and flank. Above 75 a unit is pinned: 20% movement and poor aim. It decays by 30 a round when not under fire and by 12 while still under fire. Morale does not recover above 50.
+  - **Ranged flank and rear fire:** +15% from the flank, +35% from the rear; no bonus against an all-round defence.
 
 ## Existing modes and regression coverage
 
+- [~] **FC-070/071 — Scenario regression** (`IN_PROGRESS`, iteration 3): `tests/ai.test.js` runs every non-custom scenario (22) for three synchronous rounds with both sides given orders and checks that state stays finite. This is not a balance check.
 - [ ] **FC-070 — Historical scenario regression** (`TODO`): Cannae, Agincourt, Hastings, Austerlitz.
 - [ ] **FC-071 — Modern scenario regression** (`TODO`): Ironbridge and Glass Sky.
 - [ ] **FC-072 — Endless War persistence** (`TODO`): campaign progress, survivors/veterans, restart/continue.
@@ -128,3 +152,34 @@ Append newest entries at the bottom. Record evidence, not assumptions.
   - Tests run: `node --check game.js` OK. `node tests/harness.js tests/engage.test.js` → 12/12 PASS (hill, woods, range, min range, armour, no observer, observer via recon, `tbPlan` holds/fires, open-ground false-block rate 2/456). `node tests/harness.js tests/smoke.test.js` → 18/18 PASS. `FC_NO_WEBGL=1 … smoke.test.js` → 19/19 PASS. `tests/ranges.audit.js` → PASS, new values confirmed live.
   - Unverified: how the new tooltip text and min-range ring look on screen (not screenshotted with a selection), balance/pacing across eras by actual play, AI artillery behaviour over a full battle, multiplayer (rules are deterministic and shared, but not exercised).
   - Next: **FC-012 / LOS feedback on the map** — when a selected unit's attack is blocked, draw the blocked sight line and a short label at the blocker; then FC-023 playtest pass (turns-to-first-contact per scenario) and FC-030/031 formation slots.
+- **Iteration 3 — overhaul brief: controls, fog of war, formations, suppression, 3D effects, animation, tactical AI; then the user's morale and fog follow-up.**
+  - Changes (all in `game.js` unless noted):
+    - Controls and camera (FC-010/011).
+    - Visibility: `SIGHT`, `seesUnit`, `sideSees`, `hiddenFromPlayer`, last-seen ghosts.
+    - Formations: `FORM`, `groupSlots`, `planGroupMove`, `commitMoves`, plus their simulation hooks.
+    - Stall handling; suppression (`suppGain`, `PINNED`); ranged flank fire.
+    - Effects: `FX3` layer, `fxSound`/`sndPlace`. Animation: poses, recoil, fallen soldiers, wrecks.
+    - AI: `aiTactics`, target commitment.
+    - Toast de-duplication.
+    - Formation bar, attack-move and focus buttons (`index.html`, `style.css`).
+    - Help text (`index.html`) and `README.txt`.
+    - New tests: `tests/forms.test.js`, `tests/fx.test.js`, `tests/ai.test.js`.
+  - User follow-up (same iteration):
+    - Morale scales combat effectiveness (`moraleK`: ×0.7 at 0, ×1.0 at 50, ×1.3 at 100) for melee and fire.
+    - Casualties among nearby friends and the destruction of a nearby friendly unit cost morale (on top of the existing rout cascade).
+    - Below 20 morale a unit not in melee is "Wavering" and falls back 70 per round; it breaks at 0 as before.
+    - Fog of war: a discovered enemy stays revealed for the rest of the battle (`b.known`).
+    - A "Fog of war: ON/OFF" button on the deployment screen (stored in localStorage `fc-fog`). Online games always keep fog on so both machines run the same rule.
+  - Tests run (all PASS):
+    - `node --check game.js`.
+    - `tests/smoke.test.js` (WebGL, and `FC_NO_WEBGL=1`).
+    - `tests/engage.test.js`; one check changed: a target hidden behind the hill now reports "unseen" under fog, and LOS itself is checked with `losInfo`.
+    - `tests/forms.test.js` (WebGL, and `FC_NO_WEBGL=1` before the morale additions).
+    - `tests/ai.test.js` (22 scenarios × 3 rounds); `tests/fx.test.js`.
+  - Unverified:
+    - Real-GPU frame times: headless SwiftShader runs at about 1 fps for the old and new builds alike.
+    - The look of the effects in motion (judged from stills only).
+    - Balance of morale, suppression and the new AI over full battles.
+    - Multiplayer sync of the new fields (formation, suppression and fog are carried in snapshots, but not exercised).
+    - Editor and Endless War.
+  - Next: a playtest pass per era for balance; the blocked sight line on the map (FC-012); pointer-to-world under 3D tilt (FC-011); per-era model geometry (FC-051).
