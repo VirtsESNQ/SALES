@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Field Command</title>
+<meta name="description" content="Command the outnumbered side at Cannae, Agincourt and Hastings. A turn-based battle-map strategy game in your browser.">
+<meta name="theme-color" content="#0D1210">
+<meta property="og:title" content="Field Command">
+<meta property="og:description" content="Command the outnumbered side at Cannae, Agincourt and Hastings.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Cinzel:wght@700;900&family=Orbitron:wght@600;800&family=Rye&family=Playfair+Display+SC:wght@700&family=JetBrains+Mono:wght@400;600&family=Saira+Stencil+One&family=Share+Tech+Mono&family=Big+Shoulders+Display:wght@600;800;900&family=Saira+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="brand">Field <span>Command</span></div>
+    <nav class="mtabs" role="tablist" aria-label="Game modes">
+      <button type="button" role="tab" data-tab="battles" aria-selected="true">Battles</button>
+      <button type="button" role="tab" data-tab="mirror" aria-selected="false">Equal armies</button>
+      <button type="button" role="tab" data-tab="endless" aria-selected="false">Endless War</button>
+      <button type="button" role="tab" data-tab="online" aria-selected="false">Play a friend</button>
+      <button type="button" role="tab" data-tab="editor" aria-selected="false">Map editor</button>
+    </nav>
+  </header>
+
+  <section id="menu" class="wrap">
+    <div id="cmdr-slot"></div>
+    <div class="mpanel" data-panel="battles" role="tabpanel">
+      <div class="filterbar">
+        <div class="filters" id="filters" role="group" aria-label="Filter battles by age"></div>
+        <div class="diffrow">
+          <span class="dlabel">Difficulty</span>
+          <span class="segs"><button type="button" class="seg" data-diff="normal">Normal</button><button type="button" class="seg" data-diff="historical">Historical</button></span>
+        </div>
+      </div>
+      <div class="cards" id="cards"></div>
+    </div>
+    <div class="mpanel" data-panel="mirror" role="tabpanel" hidden>
+      <div class="phead"><h2>Equal armies</h2><p>Both sides get the same troops on a mirrored field. The better commander wins.</p></div>
+      <div class="eras" id="mirror-eras"></div>
+    </div>
+    <div class="mpanel" data-panel="endless" role="tabpanel" hidden>
+      <div class="phead"><h2>Endless War</h2><p>Buy an army, fight battle after battle. Survivors become veterans; it ends when you lose.</p><button type="button" class="primary" id="continue-camp" hidden>Continue campaign</button></div>
+      <div class="eras" id="eras"></div>
+    </div>
+    <div class="mpanel" data-panel="online" role="tabpanel" hidden>
+      <div class="phead"><h2>Play a friend</h2><p>Pick an era, send the link, and fight the same mirrored battle turn by turn.</p></div>
+      <div class="netrow" id="net-row"></div>
+    </div>
+    <div class="mpanel" data-panel="editor" role="tabpanel" hidden>
+      <div class="phead"><h2>Map editor</h2><p>Shape your own battlefield: hills, woods, towns, a river with crossings, and both armies. Drafts stay on this device until you export them.</p></div>
+      <div class="edstart">
+        <button type="button" class="primary" id="ed-open">Open the editor</button>
+        <button type="button" id="ed-play-draft" hidden>Play my draft</button>
+        <span class="ednote" id="ed-note"></span>
+      </div>
+    </div>
+    <div class="howto">
+      <span><b>Drag from a unit</b> to give its order</span>
+      <span><b>Tap a unit, then tap</b> ground or enemy</span>
+      <span><b>Amber dot</b> = no orders yet</span>
+      <span><b>Enter</b> ends your turn · <b>M</b> minimap</span>
+    </div>
+  </section>
+
+  <section id="editor" class="wrap" hidden></section>
+
+<section id="muster" class="wrap muster" hidden></section>
+
+  <section id="game" hidden>
+    <div class="stage" id="stage">
+      <canvas id="cv" aria-hidden="true"></canvas>
+      <canvas id="cv3" aria-hidden="true"></canvas>
+      <canvas id="ov" tabindex="0" aria-label="Battlefield"></canvas>
+      <div class="caption" id="caption" hidden></div>
+      <div class="stamp" id="stamp" hidden></div>
+      <div class="mtip" id="mtip" hidden></div>
+    </div>
+
+    <header class="tbar">
+      <div class="tb-l">
+        <button id="b-menu" type="button" class="ico" aria-label="Back to battles">‹<span> Battles</span></button>
+        <div class="plate" id="plate"></div>
+      </div>
+      <div class="power" aria-label="Balance of power">
+        <div class="pw-side p"><b id="g-pside">Carthage</b><small><span id="g-pk">0</span> slain</small></div>
+        <div class="pw-bar"><i class="pw-p" id="pw-p"></i><i class="pw-e" id="pw-e"></i><span class="pw-mark" id="pw-mark"></span><span class="pw-turn"><small>Turn</small><b id="g-clock">1</b></span></div>
+        <div class="pw-side e"><b id="g-eside">Rome</b><small><span id="g-ek">0</span> slain</small></div>
+      </div>
+      <div class="tb-r">
+        <button id="b-speed" type="button" title="Animation speed">1×</button>
+        <button id="b-sound" type="button" class="ico" aria-label="Sound">♪</button>
+        <button id="b-restart" type="button" class="ico" aria-label="Restart battle" title="Restart">↻</button>
+        <button id="b-info" type="button" aria-expanded="false" class="ico" aria-label="Info" title="Info and help">i</button>
+      </div>
+    </header>
+    <div class="feed" id="toasts"></div>
+    <canvas id="mini" class="minimap" role="img" aria-label="Minimap: tap or drag to move the camera"></canvas>
+    <div class="zoomctl">
+      <button id="r-l" class="rot" type="button" aria-label="Rotate left">⟲</button>
+      <button id="r-r" class="rot" type="button" aria-label="Rotate right">⟳</button>
+      <button id="z-in" type="button" aria-label="Zoom in">+</button>
+      <button id="z-out" type="button" aria-label="Zoom out">−</button>
+      <button id="z-fit" type="button" aria-label="Fit map">⤢</button>
+      <button id="v-toggle" type="button">2D</button>
+      <button id="m-toggle" type="button" aria-label="Minimap" title="Minimap (M)" aria-pressed="true">▦</button>
+    </div>
+
+    <footer class="dock" id="dock">
+      <div class="hint" id="pausetag"></div>
+      <div class="cmdbar" id="cmdbar">
+        <button type="button" class="cmd" data-cmd="advance"><kbd>V</kbd><span>Advance</span></button>
+        <button type="button" class="cmd hot" data-cmd="charge"><kbd>C</kbd><span>Charge</span></button>
+        <button type="button" class="cmd" data-cmd="halt"><kbd>S</kbd><span>Halt</span></button>
+        <button type="button" class="cmd" data-cmd="back"><kbd>B</kbd><span>Fall back</span></button>
+        <button type="button" class="cmd" data-cmd="stance"><kbd>G</kbd><span>Hold the line</span></button>
+        <button type="button" class="cmd" data-cmd="fire"><kbd>F</kbd><span>Fire at will</span></button>
+        <button type="button" class="cmd gold" data-cmd="rally"><kbd>R</kbd><span>Rally</span></button>
+      </div>
+      <div class="dock-row">
+        <div class="wingbar" aria-label="Select a group">
+          <button type="button" class="wing next" id="w-next"><kbd>N</kbd>Next idle</button>
+          <button type="button" class="wing undo" id="w-undo" disabled><kbd>Z</kbd>Undo</button>
+          <button type="button" class="wing" id="w-all"><kbd>A</kbd>All</button>
+          <i class="wbr" aria-hidden="true"></i>
+          <button type="button" class="wing" data-wing="L"><kbd>Q</kbd>Left <small></small></button>
+          <button type="button" class="wing" data-wing="C"><kbd>W</kbd>Centre <small></small></button>
+          <button type="button" class="wing" data-wing="R"><kbd>E</kbd>Right <small></small></button>
+          <button type="button" class="wing" data-wing="M"><kbd>X</kbd>Mobile <small></small></button>
+        </div>
+        <div class="roster" id="roster" aria-label="Your units"></div>
+        <button type="button" class="execbtn" id="b-exec"><span>Begin battle</span><kbd>Enter</kbd></button>
+      </div>
+    </footer>
+
+    <div class="overlay light" id="ov-deploy">
+      <div class="sheet deploy">
+        <p><b>Deploy.</b> Drag your units inside the blue zone to set up, then begin.</p>
+        <button class="primary" id="b-begin" type="button">Begin battle</button>
+      </div>
+    </div>
+    <div class="overlay" id="ov-end" hidden>
+      <div class="sheet endsheet">
+        <div class="grade" id="e-grade"></div>
+        <h3 id="e-title">Victory</h3>
+        <div class="stars" id="e-stars"></div>
+        <p class="sub" id="e-reason"></p>
+        <div class="stats">
+          <div><span id="e-pl">Your losses</span><b id="e-pv">0</b></div>
+          <div><span id="e-el">Enemy losses</span><b id="e-ev">0</b></div>
+          <div><span>Enemy units broken</span><b id="e-rt">0</b></div>
+        </div>
+        <div class="xpbox" id="e-xp"></div>
+        <div class="medals-new" id="e-medals"></div>
+        <p class="hist"><strong id="e-hh">What happened</strong><span id="e-hist"></span></p>
+        <div class="row-btns">
+          <button class="primary" id="e-next" type="button">Next battle ›</button>
+          <button id="e-again" type="button">Fight again</button>
+          <button id="e-menu" type="button">Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rotate-tip" id="rotate-tip"><div class="ph"></div><b>Turn your phone sideways</b><span>The battlefield is wide. In landscape you see the whole field and every unit is bigger.</span><button type="button" id="b-portrait">Play in portrait anyway</button></div>
+    <aside class="panel" id="panel">
+      <button type="button" class="panel-x" id="b-panel-x" aria-label="Close info">×</button>
+      <div class="p-head"><b id="g-name">Cannae</b><span id="g-year">216 BC</span><div class="p-tools"><button type="button" id="p-sound">Sound on</button><button type="button" id="p-speed">Anim 1×</button><button type="button" id="p-restart">Restart</button></div></div>
+      <div><h4>Objective</h4><div class="obj" id="p-obj"></div></div>
+      <div><h4>Selected</h4><div class="unitcard" id="p-unit"></div></div>
+      <div><h4>Commander's notes</h4><ul id="p-brief"></ul></div>
+      <div>
+        <h4>Controls</h4>
+        <div class="keys">
+          <b>Drag a unit</b><span>pull an arrow to the ground to march, onto an enemy to attack</span>
+          <b>Tap</b><span>tap your unit, then tap the ground or an enemy. The unit is released after each order, so stray taps do nothing</span>
+          <b>Undo · Z</b><span>take back the last order</span>
+          <b>N / Tab</b><span>jump to the next unit without orders (amber dot)</span>
+          <b>Q W E X A</b><span>groups: 1 infantry · 2 ranged · 3 cavalry/armour · 4 artillery/support · all</span>
+          <b>Right drag</b><span>draw a battle line: position, frontage, facing</span>
+          <b>Enter</b><span>end your turn · <b>Space</b> skips the animation</span>
+          <b>Wheel / pinch</b><span>zoom · two fingers or Space+drag pans · <b>, .</b> rotate</span>
+        </div>
+      </div>
+      <div><h4>Unit types</h4><div class="legend" id="legend"></div></div>
+      <div class="hidden-legacy" hidden>
+        <span id="b-pause"></span><span id="vis-tag"></span><div id="report"></div>
+        <b id="g-pmen"></b><b id="g-emen"></b><i id="g-pbar"></i><i id="g-ebar"></i>
+        <div id="casualty"><b id="cas-n"></b><small id="cas-l"></small></div>
+      </div>
+    </aside>
+  </section>
+  <div class="netbox" id="netbox" hidden>
+    <div class="sheet">
+      <div class="eyebrow">1 v 1 online</div>
+      <h3 style="margin:4px 0 10px">Play a friend</h3>
+      <div id="net-body"></div>
+      <div class="row-btns" style="margin-top:14px"><button type="button" id="net-cancel">Cancel</button></div>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
