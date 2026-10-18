@@ -106,7 +106,8 @@
       <button id="r-r" class="rot" type="button" aria-label="Rotate right">⟳</button>
       <button id="z-in" type="button" aria-label="Zoom in">+</button>
       <button id="z-out" type="button" aria-label="Zoom out">−</button>
-      <button id="z-fit" type="button" aria-label="Fit map">⤢</button>
+      <button id="z-fit" type="button" aria-label="Fit map" title="Fit map (Home)">⤢</button>
+      <button id="z-sel" type="button" aria-label="Focus selection" title="Focus selection (L)">◎</button>
       <button id="v-toggle" type="button">2D</button>
       <button id="m-toggle" type="button" aria-label="Minimap" title="Minimap (M)" aria-pressed="true">▦</button>
     </div>
@@ -116,11 +117,22 @@
       <div class="cmdbar" id="cmdbar">
         <button type="button" class="cmd" data-cmd="advance"><kbd>V</kbd><span>Advance</span></button>
         <button type="button" class="cmd hot" data-cmd="charge"><kbd>C</kbd><span>Charge</span></button>
+        <button type="button" class="cmd" data-cmd="amove" title="Attack-move: advance to a point and engage anything in reach on the way"><kbd>J</kbd><span>Attack-move</span></button>
         <button type="button" class="cmd" data-cmd="halt"><kbd>S</kbd><span>Halt</span></button>
         <button type="button" class="cmd" data-cmd="back"><kbd>B</kbd><span>Fall back</span></button>
         <button type="button" class="cmd" data-cmd="stance"><kbd>G</kbd><span>Hold the line</span></button>
         <button type="button" class="cmd" data-cmd="fire"><kbd>F</kbd><span>Fire at will</span></button>
         <button type="button" class="cmd gold" data-cmd="rally"><kbd>R</kbd><span>Rally</span></button>
+      </div>
+      <div class="formbar" id="formbar" aria-label="Group formation">
+        <span class="fb-lab">Formation</span>
+        <button type="button" class="form" data-form="" title="Custom: keep the arrangement you drew"><kbd>⇧0</kbd>Custom</button>
+        <button type="button" class="form" data-form="line"><kbd>⇧1</kbd>Line</button>
+        <button type="button" class="form" data-form="column"><kbd>⇧2</kbd>Column</button>
+        <button type="button" class="form" data-form="wedge"><kbd>⇧3</kbd>Wedge</button>
+        <button type="button" class="form" data-form="skirmish"><kbd>⇧4</kbd>Skirmish</button>
+        <button type="button" class="form" data-form="defend"><kbd>⇧5</kbd>Hold</button>
+        <span class="fb-gap"><button type="button" class="form" id="fg-dn" aria-label="Tighter spacing" title="Tighter spacing ([)">−</button><b id="fg-val">1.0×</b><button type="button" class="form" id="fg-up" aria-label="Wider spacing" title="Wider spacing (])">+</button></span>
       </div>
       <div class="dock-row">
         <div class="wingbar" aria-label="Select a group">

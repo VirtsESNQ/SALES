@@ -4,13 +4,13 @@ module.exports=async(page,{check})=>{
   await page.evaluate(()=>start('steel'));await page.waitForTimeout(400);
   const r=await page.evaluate(()=>{
     const b=G.b,P=t=>b.units.find(u=>u.side==='P'&&u.type===t),E=t=>b.units.find(u=>u.side==='E'&&u.type===t);
-    const at=(u,x,y)=>{u.x=x;u.y=y};const out={};
+    const at=(u,x,y)=>{u.x=x;u.y=y;visDirty(b)};const out={};
     const tank=P('tank'),foe=E('tank'),mlrs=P('mlrs'),recon=P('recon'),heli=E('heli'),eat=E('atgm');
     // park every other player unit in the far corner so they cannot observe
     for(const u of b.units)if(u.side==='P'&&u!==tank&&u!==mlrs)at(u,960,630);
     at(tank,600,560);at(foe,600,420);out.open=canEngage(b,tank,foe);
     at(foe,600,300);out.range=canEngage(b,tank,foe);
-    at(tank,150,300);at(foe,360,300);out.hill=canEngage(b,tank,foe);
+    at(tank,150,300);at(foe,360,300);out.hill=losInfo(b,tank,foe);out.hillEng=canEngage(b,tank,foe);
     at(eat,395,330);at(tank,605,330);out.woods=canEngage(b,eat,tank);
     at(mlrs,500,620);at(foe,500,520);out.min=canEngage(b,mlrs,foe);
     at(heli,600,500);at(tank,600,560);out.armor=canEngage(b,tank,heli);
@@ -29,6 +29,7 @@ module.exports=async(page,{check})=>{
   check(r.open.ok,'tank engages an enemy tank in range on open ground');
   check(!r.range.ok&&r.range.why==='range','out of range is refused with reason "range"');
   check(!r.hill.ok&&r.hill.why==='hill','a hill between the tanks blocks line of sight');
+  check(!r.hillEng.ok&&r.hillEng.why==='unseen','fog: a target nobody can see behind the hill is refused as unseen');
   check(!r.woods.ok&&r.woods.why==='woods','woods between AT team and tank block line of sight');
   check(!r.min.ok&&r.min.why==='min','rocket artillery refuses targets inside its minimum range');
   check(!r.armor.ok&&r.armor.why==='armor','tank gun cannot engage a helicopter');

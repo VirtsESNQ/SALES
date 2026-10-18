@@ -330,9 +330,11 @@ function aiTick(b,L){
 function melee(b,a,c,share,dt){
   let mult=1,mor=0;
   if(c.rout)mult=2.5;
-  else{const df=Math.abs(norm(Math.atan2(a.y-c.y,a.x-c.x)-c.facing));if(df>2.1){mult=2.2;mor=12}else if(df>1.05){mult=1.5;mor=3.5}}
-  if(a.chargeT>0&&(a.type==='cav'||a.type==='gen')&&c.type!=='shield'&&!c.stakes)mult*=2.4;
-  else if(a.chargeT>0)mult*=1.5;
+  else{const df=Math.abs(norm(Math.atan2(a.y-c.y,a.x-c.x)-c.facing)),fk=formOf(c).flank;if(df>2.1){mult=1+1.2*fk;mor=12*fk}else if(df>1.05){mult=1+.5*fk;mor=3.5*fk}}
+  if(a.chargeT>0&&(a.type==='cav'||a.type==='gen')&&c.type!=='shield'&&!c.stakes&&c.form!=='defend')mult*=2.4*formOf(a).charge;
+  else if(a.chargeT>0)mult*=1.5*formOf(a).charge;
+  if(a.chargeT>0&&(a.type==='cav'||a.type==='gen')&&c.form==='defend')mult*=.5;
+  mult*=formOf(a).melee*formOf(c).meleeIn;
   if(a.type==='cav'&&c.type==='shield')mult*=0.5;
   if(a.type==='cav'&&c.stakes)mult*=0.4;
   if(c.type==='cav'&&a.type==='shield')mult*=1.8;
@@ -676,6 +678,20 @@ function unitLayout(u){
   const cols=Math.max(1,Math.floor((w-2)/sx)),rows=Math.max(1,Math.round(d/sy));
   return {sx,sy,cols,rows,ox:-(cols-1)*sx/2,oy:-(rows-1)*sy/2};
 }
+/* the soldiers' places inside a unit, shared by the 2D and 3D renderers (unit-local: x along the
+   front, -y is forward). Line and column are full ranks; skirmish is loose and staggered; wedge thins
+   its ranks toward the point; hold forms a hollow square whose sides face outward (rot). */
+function figSlots(u){
+  const L=unitLayout(u),F=formOf(u),single=L.cols===1&&L.rows===1;
+  const sp=single?1:F.space,sx=L.sx*sp,sy=L.sy*(sp>1?1.25:1),cols=single?1:Math.max(1,Math.floor((u.w-2)/sx)),rows=single?1:Math.max(1,Math.round(Math.max(u.dd,7)/sy));
+  const key=cols+'|'+rows+'|'+u.form;if(u._fs&&u._fs.key===key)return u._fs.list;
+  const list=[],ox=-(cols-1)*sx/2,oy=-(rows-1)*sy/2,half=(cols-1)/2,hollow=u.form==='defend'&&rows>=3&&cols>=3&&!VEH.has(u.type);
+  for(let r=rows-1;r>=0;r--)for(let i=0;i<cols;i++){
+    if(u.form==='wedge'&&rows>1&&Math.abs(i-half)>(r+1)/rows*half+.6)continue;
+    let rot=0,front=r===0;
+    if(hollow){const edge=r===0||r===rows-1||i===0||i===cols-1;if(!edge)continue;rot=r===0?0:r===rows-1?Math.PI:i===0?-Math.PI/2:Math.PI/2;front=true}
+    list.push({x:ox+i*sx+(u.form==='skirmish'?(r%2)*sx*.5:0),y:oy+r*sy,r,i,front,rot})}
+  u._fs={key,list};return list}
 function figure(c,T,x,y,S,front,j){
   const line=(x0,y0,x1,y1,col,w)=>{c.strokeStyle=col;c.lineWidth=w;c.beginPath();c.moveTo(x0,y0);c.lineTo(x1,y1);c.stroke()};
   if(T==='cav'||T==='gen'){
@@ -719,14 +735,14 @@ function drawUnit(c,u,sel,now,era){
   if(!u.rout&&!u.air){c.fillStyle='rgba(0,0,0,.2)';rr(c,-w/2+2,-d/2+3,w,d,3);c.fill();c.fillStyle=SIDE[u.side].tint;rr(c,-w/2,-d/2,w,d,3);c.fill()}
   const engaged=u.contacts&&u.contacts.length>0,mv=u.moving,veh=VEH.has(T);
   c.globalAlpha=u.rout?0.6:1;
-  for(let r=L.rows-1;r>=0;r--)for(let i=0;i<L.cols;i++){
-    const q=j[(r*L.cols+i)%j.length];
-    let x=L.ox+i*L.sx+q.x*(T==='arc'||T==='minf'?2.6:T==='cav'||veh?1.6:0.9),y=L.oy+r*L.sy+q.y*(T==='arc'?2:1);
+  const FS=figSlots(u);
+  FS.forEach((s0,n)=>{const r=s0.r,q=j[n%j.length];
+    let x=s0.x+q.x*(T==='arc'||T==='minf'?2.6:T==='cav'||veh?1.6:0.9)*(u.form==='skirmish'?1.6:1),y=s0.y+q.y*(T==='arc'?2:1);
     if(u.rout){x*=1.7;y=y*1.9+q.y*6}
     else if(engaged&&r<2&&!veh){x+=Math.sin(now*.03+q.p*3)*.7;y+=Math.cos(now*.027+q.p*2)*.7}
     else if(mv&&!veh){y+=Math.sin(now*.016+q.p)*.55}
-    figure(c,T,x,y,S,r===0,q);
-  }
+    if(s0.rot){c.save();c.translate(x,y);c.rotate(s0.rot);figure(c,T,0,0,S,s0.front,q);c.restore()}else figure(c,T,x,y,S,s0.front,q);
+  });
   c.globalAlpha=1;
   if(T==='gen'&&!u.rout){c.strokeStyle='#2E2216';c.lineWidth=.9;c.beginPath();c.moveTo(0,3);c.lineTo(0,-11);c.stroke();c.fillStyle='#D6A63A';c.fillRect(0,-11,9,5.5);c.fillStyle=S.tunic;c.fillRect(0,-9,9,1.6)}
   if(u.stakes&&!u.rout){c.strokeStyle='#8E6E44';c.lineWidth=.9;for(let i=-w/2+2;i<w/2;i+=4.5){c.beginPath();c.moveTo(i,-d/2-2);c.lineTo(i+1.5,-d/2-6.5);c.stroke()}}
@@ -1077,6 +1093,56 @@ function endlessResult(b){
   return {title:'Defeat',reason:`Your campaign ends after ${n} victor${n===1?'y':'ies'}. Best run in this era: ${best}.`,again:'New campaign',hist:'Try another mix: read the scouts report, recruit the units that beat what they bring, and keep your commander close to the line.',era:c.era};
 }
 
+/* ---------- formations ----------
+   A formation is a drill for each unit (the shape of its block and how it moves, wheels, shoots and
+   takes punishment) and a geometry for a group (groupSlots). 'line' is the original game's block and
+   the baseline (all multipliers 1). Every effect below is read by the simulation:
+   move -> tbMoveRange, turn -> tbPlanRange (cost of wheeling), fire/inFire/splash -> tbRangedHit,
+   melee/meleeIn/flank/charge -> melee(), w/d -> the unit's footprint (contacts, collisions, figures). */
+const FORM={
+  line:    {label:'Line',    w:1,   d:1,   move:1,   turn:.30,fire:1,   inFire:1,  splash:1,   melee:1,  meleeIn:1,   flank:1,  charge:1,   space:1,  why:'Widest front: every rifle or bow can shoot. Wheels slowly.'},
+  column:  {label:'Column',  w:.5,  d:1.9, move:1.25,turn:.10,fire:.55, inFire:1,  splash:1.3, melee:.9, meleeIn:1,   flank:1.1,charge:1.1, space:1,  why:'Narrow and deep: fastest march, fits roads and bridges. Few weapons face the front; shells hit it hard.'},
+  wedge:   {label:'Wedge',   w:.78, d:1.3, move:1.05,turn:.18,fire:.8,  inFire:1,  splash:1.1, melee:1.1,meleeIn:1,   flank:.85,charge:1.25,space:1,  why:'Pointed advance: hits harder in a charge and is harder to flank. Less firepower.'},
+  skirmish:{label:'Skirmish',w:1.45,d:1,   move:1.05,turn:.15,fire:.9,  inFire:.7, splash:.55,melee:.7, meleeIn:1.3, flank:1,  charge:.8,  space:1.7,why:'Spread out: takes far less from fire and blasts, but loose order loses in melee.'},
+  defend:  {label:'Hold',    w:.7,  d:1.5, move:.5,  turn:.40,fire:.75, inFire:1,  splash:1.25,melee:1,  meleeIn:.8,  flank:0,  charge:.6,  space:1,  why:'All-round defence (square, schiltron, hedgehog): no flank or rear to hit, stops charges. Barely moves.'},
+};
+const FORM_KEYS=['line','column','wedge','skirmish','defend'];
+/* which drills a unit can actually perform */
+function formsFor(u){
+  if(!u||u.type==='gen'||u.air||u.naval||u.space)return['line'];
+  if(VEH.has(u.type)||u.type==='art'||u.type==='iclad'||u.type==='walker')return['line','column','wedge','skirmish'];
+  if(u.type==='cav'||u.type==='griffin'||u.type==='golem')return['line','column','wedge','skirmish'];
+  return FORM_KEYS}
+/* change a unit's drill: its footprint changes now; doing it costs part of this turn's movement */
+function setForm(u,kind,b){
+  if(!FORM[kind]||!formsFor(u).includes(kind))kind='line';
+  if(u.w0==null){u.w0=u.w;u.d0=u.d}
+  const F=FORM[kind];if(u.form!==kind&&b&&u.form)u.reformT=b.t;
+  u.form=kind;u.w=Math.max(10,Math.round(u.w0*F.w));u.d=Math.max(7,Math.round(u.d0*F.d));
+  u.dd=Math.max(7,u.d*(0.4+0.6*Math.sqrt(Math.max(0,u.men)/u.maxMen)));u._lay=null}
+const formOf=u=>FORM[u&&u.form]||FORM.line;
+/* group geometry: target slots for a set of units around a centre (cx,cy), facing `face`
+   (the game's facing convention: the angle a unit's front points at). Returns [{u,x,y}] in world space.
+   gap scales the space between units. The same function feeds the preview and the order. */
+function groupSlots(kind,units,cx,cy,face,gap,frontage){
+  const us=[...units];if(!us.length)return[];
+  const fx=Math.cos(face),fy=Math.sin(face),rx=Math.cos(face+Math.PI/2),ry=Math.sin(face+Math.PI/2);
+  const proj=(u,ax,ay)=>u.x*ax+u.y*ay,F=FORM[kind]||FORM.line,g=(kind==='skirmish'?22:10)*(gap||1);
+  const W_=u=>formsFor(u).includes(kind)?Math.max(10,Math.round((u.w0||u.w)*F.w)):(u.w0||u.w),D_=u=>formsFor(u).includes(kind)?Math.max(7,Math.round((u.d0||u.d)*F.d)):(u.d0||u.d);
+  const out=[],put=(u,x,y)=>out.push({u,x:cx+rx*x+fx*y,y:cy+ry*x+fy*y});
+  const row=(list,y0,fill)=>{list.sort((a,c)=>proj(a,rx,ry)-proj(c,rx,ry));const tot=list.reduce((s,u)=>s+W_(u),0)+g*(list.length-1);
+    const extra=fill&&frontage&&tot<frontage&&list.length>1?(frontage-tot)/(list.length-1):0,span=tot+extra*(list.length-1);let x=-span/2;
+    for(const u of list){put(u,x+W_(u)/2,y0);x+=W_(u)+g+extra}};
+  if(kind==='column'){us.sort((a,c)=>proj(c,fx,fy)-proj(a,fx,fy));let y=0;for(const u of us){put(u,0,-(y+D_(u)/2));y+=D_(u)+g}return out}
+  if(kind==='wedge'){us.sort((a,c)=>proj(c,fx,fy)-proj(a,fx,fy));const lead=us.shift();put(lead,0,0);const aw=us.reduce((s,u)=>s+W_(u),W_(lead))/(us.length+1),ad=Math.max(...us.map(D_),D_(lead));
+    const rest=us.sort((a,c)=>proj(a,rx,ry)-proj(c,rx,ry)),L=rest.slice(0,Math.ceil(rest.length/2)).reverse(),R=rest.slice(Math.ceil(rest.length/2));
+    L.forEach((u,i)=>put(u,-(i+1)*(aw*.62+g),-(i+1)*(ad+g+6)));R.forEach((u,i)=>put(u,(i+1)*(aw*.62+g),-(i+1)*(ad+g+6)));return out}
+  if(kind==='defend'){const second=us.filter(u=>{const r=ROLE[u.type];return r==='ranged'||r==='guns'||r==='support'||u.type==='gen'}),first=us.filter(u=>!second.includes(u));
+    const A=first.length?first:second,B=first.length?second:[];row(A,0,true);if(B.length){const d=Math.max(...A.map(D_))+g*2+Math.max(...B.map(D_))/2;row(B,-d,false)}return out}
+  row(us,0,true);return out}
+/* forward-facing average of a set of units (circular mean) */
+function meanFacing(us){let sx=0,sy=0;for(const u of us){sx+=Math.cos(u.facing);sy+=Math.sin(u.facing)}return Math.atan2(sy,sx)}
+
 /* ---------- turn-based engine: move, then attack, then the enemy moves ---------- */
 const TB={MOVE:4.6,EQ:5,ROUND:8};
 const tbLive=b=>b.units.filter(u=>!u.gone);
@@ -1084,6 +1150,7 @@ function tbMoveRange(b,u){
   let r=TYPES[u.type].speed*TB.MOVE;if(u.rout)r*=1.2;
   if(!u.air){const t=terr(b,u.x,u.y);if(t==='mud')r*=.45;else if(t==='woods')r*=u.type==='cav'?.35:.6;else if(t==='ford'||t==='stream')r*=.55;else if(t==='hill')r*=.85;else if(t==='town')r*=VEH.has(u.type)?.65:.85}
   if(u.contacts&&u.contacts.some(c=>!c.rout)&&!u.rout)r*=.5;
+  if(!u.rout){r*=formOf(u).move;if(u.reformT!=null&&u.reformT===b.t)r*=.7;const s=u.supp||0;r*=s>PINNED?.2:1-.4*s/100}
   return r*(1-.4*(u.fatigue||0));
 }
 function contactDist(a,c){const an=Math.atan2(c.y-a.y,c.x-a.x);return radTo(a,an)+radTo(c,an+Math.PI)+3}
@@ -1100,19 +1167,40 @@ function tbTruncate(pts,maxD){
   for(let i=1;i<pts.length;i++){const [x0,y0]=out[out.length-1],[x1,y1]=pts[i],d=Math.hypot(x1-x0,y1-y0);if(d<=left){out.push([x1,y1]);left-=d}else{const k=left/Math.max(d,1e-6);out.push([x0+(x1-x0)*k,y0+(y1-y0)*k]);left=0;break}}
   return {pts:out,used:maxD-left};
 }
-/* line of sight in cities: direct fire cannot pass through more than a few metres of buildings. Artillery, mortars, bombs and anything in the air ignore it. */
-const INDIRECT=new Set(['shell','rocket','mortar','siege','airwing','bomb','zbomb','fireball','breath','swarm','vls','cannon']);
-function tbLOS(b,a,c){if(!b.s.city||a.air||c.air)return true;const R=TYPES[a.type].ranged;if(R&&(INDIRECT.has(R.w)||R.min))return true;
-  const d=dist(a,c),n=Math.ceil(d/5);let blk=0;for(let k=1;k<n;k++){const t=k/n,dd=t*d;if(dd<18||d-dd<18)continue;if(terr(b,a.x+(c.x-a.x)*t,a.y+(c.y-a.y)*t)==='town'){blk+=d/n;if(blk>14)return false}}return true}
+/* weapons that arc over the ground: they ignore line of sight (those in OBSERVED still need someone to see the target) */
+const INDIRECT=new Set(['shell','rocket','mortar','siege','airwing','bomb','zbomb','fireball','breath','swarm','vls']);
+/* can a shooter in range actually fire? the shared engagement rule (canEngage) answers; range, min range and armour are tbPlan's own branches */
+function tbLOS(b,a,c){const R=TYPES[a.type].ranged;if(!R)return true;const e=canEngage(b,a,c);return e.ok||e.why==='range'||e.why==='min'||e.why==='armor'}
+/* how far a unit really gets along a path this turn: wheeling to a new heading costs ground (a wide line turns slowly), and a formation moving together keeps to the pace of its slowest member */
+function tbPlanRange(b,u,pts){
+  let range=tbMoveRange(b,u);const o=u.order;
+  if(o&&o.grp!=null){for(const m of b.units){if(m===u||m.gone||m.rout||m.side!==u.side||!m.order||m.order.grp!==o.grp)continue;range=Math.min(range,tbMoveRange(b,m))}}
+  if(pts&&pts.length>1&&!u.air&&!u.naval){const [x0,y0]=pts[0],[x1,y1]=pts[1];if(Math.hypot(x1-x0,y1-y0)>2){const dth=Math.abs(norm(Math.atan2(y1-y0,x1-x0)-u.facing));
+    const k=VEH.has(u.type)?.08:(FORM[u.form]||FORM.line).turn;range=Math.max(range*.45,range-dth/Math.PI*k*range)}}
+  return range}
+/* attack-move: the first enemy the unit can engage this turn without leaving its route */
+function amoveTarget(b,u,range){
+  const R=TYPES[u.type].ranged;let best=null,bs=-1e9;
+  for(const t of b.units){if(t.side===u.side||t.gone||t.rout||!sideSees(b,u.side,t))continue;let sc;
+    if(R){if(!canEngage(b,u,t).ok)continue;sc=MCODES[matchCode(u.type,t.type)].v*100-dist(u,t)*.2}
+    else{if(t.air||TYPES[u.type].melee<=0)continue;const d=dist(u,t);if(d>range+contactDist(u,t))continue;sc=MCODES[matchCode(u.type,t.type)].v*100-d}
+    if(sc>bs){bs=sc;best=t}}
+  return best}
 /* what an order turns into this turn: where the unit ends up, and whether it gets to strike */
 function tbPlan(b,u){
-  const o=u.order;if(!o||u.rout||u.gone)return null;const range=tbMoveRange(b,u);
-  if(o.kind==='move'){const p=tbPath(b,u,o.x,o.y),tr=tbTruncate(p,range);return{pts:tr.pts,used:tr.used,face:o.face,clamped:pathLen(p)>range+1}}
+  const o=u.order;if(!o||u.rout||u.gone)return null;
+  if(o.kind==='move'){
+    if(o.amove){const t=amoveTarget(b,u,tbMoveRange(b,u));if(t){const pl=tbPlan(b,Object.assign({},u,{order:{kind:'attack',target:t.id}}));if(pl&&pl.attack){pl.amove=true;return pl}}}
+    const p=tbPath(b,u,o.x,o.y),range=tbPlanRange(b,u,p),tr=tbTruncate(p,range);return{pts:tr.pts,used:tr.used,face:o.face,clamped:pathLen(p)>range+1,noRoute:p.length<2||(p[p.length-1][0]===u.x&&p[p.length-1][1]===u.y&&Math.hypot(o.x-u.x,o.y-u.y)>8)}}
+  const range=tbMoveRange(b,u);
   const t=byId(b,o.target);if(!t||t.gone)return null;
   const R=TYPES[u.type].ranged,d=dist(u,t);
   if(u.contacts&&u.contacts.includes(t))return{pts:[[u.x,u.y]],used:0,attack:true,melee:true,t};
   if(R&&!o.charge&&WEAP[R.w][t.armor]>0){
-    if(d<=R.range&&d>=(R.min||0)){if(tbLOS(b,u,t))return{pts:[[u.x,u.y]],used:0,attack:true,ranged:true,t};const p=tbPath(b,u,t.x,t.y),tr=tbTruncate(p,Math.min(range,d*.6));return{pts:tr.pts,used:tr.used,attack:false,ranged:true,moved:true,t,noLos:true}}
+    if(d<=R.range&&d>=(R.min||0)){if(tbLOS(b,u,t))return{pts:[[u.x,u.y]],used:0,attack:true,ranged:true,t};
+      /* indirect fire with nobody watching the target holds still instead of driving the guns at it */
+      if(OBSERVED.has(R.w)&&!u.air)return{pts:[[u.x,u.y]],used:0,attack:false,ranged:true,t,noObs:true};
+      const p=tbPath(b,u,t.x,t.y),tr=tbTruncate(p,Math.min(range,d*.6));return{pts:tr.pts,used:tr.used,attack:false,ranged:true,moved:true,t,noLos:true}}
     if(d<(R.min||0)){const k=((R.min||0)+10-d)/d,p=tbPath(b,u,u.x-(t.x-u.x)*k,u.y-(t.y-u.y)*k),tr=tbTruncate(p,range);return{pts:tr.pts,used:tr.used,attack:false,t,ranged:true}}
     const need=d-R.range*0.9,gx=u.x+(t.x-u.x)/d*need,gy=u.y+(t.y-u.y)/d*need,p=tbPath(b,u,gx,gy),L=pathLen(p),tr=tbTruncate(p,range);
     return{pts:tr.pts,used:tr.used,attack:L<=range+1&&!!R.move,ranged:true,moved:true,t,short:L>range+1}
@@ -1131,11 +1219,24 @@ function tbSeparate(b){
     const dx=c.x-a.x,dy=c.y-a.y,d=Math.hypot(dx,dy);if(d>140||d<.01)continue;const an=Math.atan2(dy,dx);let mn=radTo(a,an)+radTo(c,an+Math.PI);if(a.side===c.side)mn*=.92;
     if(d<mn){const p=(mn-d)/2,ux=dx/d,uy=dy/d;if(!blocked(b,a,a.x-ux*p,a.y-uy*p)){a.x-=ux*p;a.y-=uy*p}if(!blocked(b,c,c.x+ux*p,c.y+uy*p)){c.x+=ux*p;c.y+=uy*p}}}
   for(const u of L){u.x=Math.max(8,Math.min(W-8,u.x));if(!u.rout)u.y=Math.max(8,Math.min(H-8,u.y))}
+  visDirty(b);
 }
 /* damage helpers built on the real-time formulas, scaled to one turn of fighting */
 /* concealment: a unit in woods or buildings can only be hit properly if someone on the shooter's side is close enough to see it, or it gave itself away by firing */
 function tbConcealed(b,c){if(c.struck)return false;if(c.stealth)return true;if(c.air)return false;const t=terr(b,c.x,c.y);return t==='woods'||t==='town'||t==='nebula'}
 function tbSpotted(b,side,c){if(!tbConcealed(b,c))return true;const R=spotR(b.s.era)*(c.type==='sub'?.8:1);for(const o of b.units){if(o.side!==side||o.gone||o.rout)continue;if(Math.hypot(o.x-c.x,o.y-c.y)<(o.type==='drone'||o.type==='swarm'?R*2.2:o.scout?R*2.6:R))return true}return false}
+/* suppression (0-100): incoming fire pins troops down even when it kills few. Heavy weapons and blasts suppress most,
+   cover and armour least. Above PINNED a unit barely moves and shoots poorly; it wears off when the fire stops. */
+const PINNED=75;
+const SUPP_W={arrow:5,musket:9,cannon:18,rifle:14,autocannon:22,tankgun:12,atgm:5,shell:28,missile:9,hellfire:10,sam:0,kamikaze:14,mortar:26,rocket:30,siege:16};
+function suppGain(b,w,c,loss,fl){
+  if(c.air||c.naval||c.space||c.type==='gen')return 0;
+  let s=(SUPP_W[w]!=null?SUPP_W[w]:9)+Math.min(30,loss/c.maxMen*400);
+  s*=c.armor==='heavy'?.25:c.armor==='light'?.55:c.armor==='gun'?.8:1;
+  const t=terr(b,c.x,c.y);if(t==='woods'||t==='town')s*=.65;if(c.dugIn)s*=.75;
+  return s*formOf(c).inFire*(1+fl)}
+const rangedFlank=(a,c)=>{if(c.air||c.naval||c.space)return 0;const an=Math.abs(norm(Math.atan2(a.y-c.y,a.x-c.x)-c.facing));return an>2.36?.35:an>1.05?.15:0};
+const isPinned=u=>(u.supp||0)>PINNED&&!u.rout;
 function tbRangedHit(b,a,c,moved){
   const RW=TYPES[a.type].ranged,WT=WEAP[RW.w];let m=WT[c.armor];if(!m)return 0;
   if(RW.w==='arrow'&&c.armor==='shield'&&b.plunge&&a.side==='E')m=0.9;
@@ -1144,25 +1245,30 @@ function tbRangedHit(b,a,c,moved){
   if(tc==='mud')m*=1.5;if(tc==='woods')m*=.5;if(tc==='asteroid')m*=.55;if(tc==='shoal'&&c.naval)m*=.9;if(tc==='hill'&&ta!=='hill')m*=.85;if(tc==='town')m*=c.armor==='heavy'?.7:.45;
   if(c.dugIn&&!c.air)m*=(RW.w==='shell'||RW.w==='cannon')?.5:.75;
   if(!tbSpotted(b,a.side,c))m*=.2;if(JAMMED.has(RW.w)&&jammedAt(b,c.side,c.x,c.y))m*=.45;
+  m*=formOf(a).fire*formOf(c).inFire*(RW.splash?formOf(c).splash:1);
+  /* shaken shooters miss; fire into a flank or the rear of a formed unit hits harder (an all-round defence has neither) */
+  m*=1-.45*(a.supp||0)/100;const fl=rangedFlank(a,c);m*=1+fl*formOf(c).flank;
   const dt=TB.EQ,loss=eff(a.men)*K.ranged*RW.dmg*m*a.q*(b.s.leth||1)*dt;
   c.dmg+=loss;c.mdmg+=loss/c.maxMen*200+((c.armor==='horse'?.8:.2)+(tc==='mud'?1.2:0))*dt;
-  if(RW.splash)for(const o of tbLive(b)){if(o===c||o.side===a.side||o.air)continue;const dd=dist(o,c);if(dd<RW.splash){const k=.4*(1-dd/RW.splash)*(WT[o.armor]||0);o.dmg+=loss*k;o.mdmg+=loss*k/o.maxMen*200}}
+  c.sdmg=(c.sdmg||0)+suppGain(b,RW.w,c,loss,fl);
+  if(RW.splash)for(const o of tbLive(b)){if(o===c||o.side===a.side||o.air)continue;const dd=dist(o,c);if(dd<RW.splash){const k=.4*(1-dd/RW.splash)*(WT[o.armor]||0)*formOf(o).splash;o.dmg+=loss*k;o.mdmg+=loss*k/o.maxMen*200;o.sdmg=(o.sdmg||0)+suppGain(b,RW.w,o,loss*k,0)*.6}}
   if(RW.w==='kamikaze')a.men=Math.max(0,a.men-a.maxMen*.22);
   if(RW.w==='fire')a.men=Math.max(0,a.men-a.maxMen*.45);
   return loss;
 }
 function tbMeleeHit(b,a,c,charge){
   a.crowd=1;c.crowd=1;
-  if(charge){a.chargeT=1;if((a.type==='cav'||a.type==='gen')&&c.type!=='shield'&&!c.stakes)c.mdmg+=14;else if(a.type!=='cav')c.mdmg+=8}
+  if(charge){a.chargeT=1;const ck=formOf(a).charge*formOf(c).charge;if((a.type==='cav'||a.type==='gen')&&c.type!=='shield'&&!c.stakes)c.mdmg+=14*ck;else if(a.type!=='cav')c.mdmg+=8*ck}
   const before=c.dmg;melee(b,a,c,1,TB.EQ);a.chargeT=0;
   if(!c.rout&&TYPES[c.type].melee>0)melee(b,c,a,1,TB.EQ*.75);
   return c.dmg-before;
 }
-function tbApply(b,list){
+function tbApply(b,list){visDirty(b);
   const L=tbLive(b),gens=L.filter(g=>g.type==='gen'&&!g.rout),out=[];
   for(const u of list){if(u.gone)continue;
     u.inspired=gens.some(g=>g!==u&&g.side===u.side&&dist(g,u)<g.aura);
     const k=Math.min(u.men,u.dmg),mb=u.morale;u.men-=k;u.killed+=k;u.morale-=u.mdmg*u.resolve*(u.inspired?.75:1);u.dmg=0;u.mdmg=0;
+    if(u.sdmg){const was=isPinned(u);u.supp=Math.min(100,(u.supp||0)+u.sdmg*(u.inspired?.8:1));u.sdmg=0;if(!was&&isPinned(u)&&u.side==='P')b.msgs.push({text:`${u.name} is pinned down by fire.`,kind:'bad'})}
     if(k>0||u.morale<mb)out.push({u,lost:k,dm:Math.round(u.morale-mb)});u.hitThisRound=true;
     u.dd=Math.max(7,u.d*(0.4+0.6*Math.sqrt(Math.max(0,u.men)/u.maxMen)));
     if(!u.rout&&(u.morale<=0||u.men<u.maxMen*.18))routUnit(b,u,L);
@@ -1173,19 +1279,19 @@ function tbApply(b,list){
 /* preview of a strike without applying it */
 function tbPreview(b,a,t){
   const plan=tbPlan(b,Object.assign({},a,{order:{kind:'attack',target:t.id}}));
-  const save=b.units.map(u=>[u.dmg,u.mdmg,u.men]),fxn=b.fx.length,msgs=b.msgs.length;
+  const save=b.units.map(u=>[u.dmg,u.mdmg,u.men,u.sdmg]),fxn=b.fx.length,msgs=b.msgs.length;
   const ox=a.x,oy=a.y;let res=null;
   if(plan&&plan.attack){const e=plan.pts[plan.pts.length-1];a.x=e[0];a.y=e[1];
     for(const u of b.units){u.dmg=0;u.mdmg=0}
     if(plan.ranged)tbRangedHit(b,a,t,plan.moved);else tbMeleeHit(b,a,t,plan.charge);
     res={theyLose:t.dmg,theyMorale:t.mdmg*t.resolve,youLose:a.dmg,youMorale:a.mdmg*a.resolve,reach:true};}
   else res={reach:false,plan};
-  a.x=ox;a.y=oy;b.units.forEach((u,i)=>{u.dmg=save[i][0];u.mdmg=save[i][1];u.men=save[i][2]});b.fx.length=fxn;b.msgs.length=msgs;
+  a.x=ox;a.y=oy;b.units.forEach((u,i)=>{u.dmg=save[i][0];u.mdmg=save[i][1];u.men=save[i][2];u.sdmg=save[i][3]});b.fx.length=fxn;b.msgs.length=msgs;
   return res;
 }
 /* enemy decisions, made at the start of the round so you can see what they intend */
 function tbEnemyPlan(b){
-  const L=tbLive(b),foes=L.filter(u=>u.side==='P'&&!u.rout);
+  const L=tbLive(b),foes=L.filter(u=>u.side==='P'&&!u.rout&&sideSees(b,'E',u));
   for(const u of L){
     if(u.side!=='E'||u.rout||!u.ai)continue;const ai=u.ai;u.order=null;
     if(b.t<ai.delay)continue;
@@ -1196,7 +1302,7 @@ function tbEnemyPlan(b){
     if(ai.mode==='regroup'){if(u.morale>80)ai.mode=ai.base;else{if(u.y>150)mv(u.x,Math.max(110,u.y-150));continue}}
     if(ai.mode==='feint'){if(b.t>ai.until)ai.mode=ai.base;else{mv(u.x,140);continue}}
     const live=u.contacts.filter(c=>!c.rout);if(live.length){u.order={kind:'attack',target:live[0].id};continue}
-    if(!foes.length)continue;
+    if(!foes.length){if(ai.mode==='advance'){const g=aiSearchPoint(b,u);if(g&&Math.hypot(g.x-u.x,g.y-u.y)>30)mv(g.x,g.y)}continue}
     if(ai.wps&&ai.wi<ai.wps.length){const nr=nearest(u,foes);if(!nr||dist(u,nr)>175){const w=ai.wps[ai.wi];if(Math.hypot(w.x-u.x,w.y-u.y)<30)ai.wi++;mv(ai.wps[Math.min(ai.wi,ai.wps.length-1)].x,ai.wps[Math.min(ai.wi,ai.wps.length-1)].y);continue}ai.wi=ai.wps.length}
     const T=TYPES[u.type],R=T.ranged;let c=R?foes.filter(f=>WEAP[R.w][f.armor]>0):foes.filter(f=>!f.air);if(!c.length)c=foes.filter(f=>!f.air);if(!c.length)continue;
     const t=chooseTarget(b,u,c,ai.pref);if(!t)continue;
@@ -1204,6 +1310,11 @@ function tbEnemyPlan(b){
   }
   for(const u of L)if(u.side==='P'&&!u.rout&&!u.order&&u.stance==='aggr'&&u.type!=='gen'){let best=null,bs=-1;for(const o of L){if(o.side==='P'||o.rout)continue;const pl=tbPlan(b,Object.assign({},u,{order:{kind:'attack',target:o.id}}));if(pl&&pl.attack){const s=MCODES[matchCode(u.type,o.type)].v*1000-dist(u,o);if(s>bs){bs=s;best=o}}}if(best)u.order={kind:'attack',target:best.id,auto:true}}
 }
+/* with no enemy in sight, head for where the enemy was last seen, else toward the enemy deployment area */
+function aiSearchPoint(b,u){const side=u.side==='E'?'P':'E';let best=null,bd=1e9;
+  for(const o of b.units){if(o.side!==side||o.gone)continue;const ls=b.lastSeen&&b.lastSeen[o.id];if(!ls)continue;const d=Math.hypot(ls.x-u.x,ls.y-u.y);if(d<bd){bd=d;best=ls}}
+  if(best)return best;const sp=(side==='P'?b.s.player:b.s.enemy)||[];if(!sp.length)return null;
+  return{x:sp.reduce((a,o)=>a+o.x,0)/sp.length,y:sp.reduce((a,o)=>a+o.y,0)/sp.length}}
 /* a side's phase: everyone moves at once, then strikes one by one */
 function tbPhase(b,side){
   const q=[],L=tbLive(b);
@@ -1240,15 +1351,15 @@ function tbRunItem(b,it,p){
       u.moving=p<1;
       if(p>=1){u.moving=false;if(m.face!=null)u.facing=m.face;if(m.flee&&(u.y<-40||u.y>H+40)){u.gone=true;u.fled=u.men}
         if(!m.flee&&m.used){if(terr(b,u.x,u.y)==='mud'||m.pts.some(([x,y])=>terr(b,x,y)==='mud'))u.fatigue=Math.min(.85,(u.fatigue||0)+m.used/400);u.movedThisRound=true}}}
-    if(p>=1){tbSeparate(b);tbContacts(b)}
+    if(p>=1){tbSeparate(b);tbContacts(b);visDirty(b)}
   }
 }
 function tbStrike(b,it){
   const u=it.u;if(u.gone||u.rout)return null;
-  if(it.ow){const t=it.ow;if(t.gone||u.struck)return null;u.facing=Math.atan2(t.y-u.y,t.x-u.x);tbRangedHit(b,u,t,false);shotFx(b,u,t,TYPES[u.type].ranged);u.struck=true;return tbApply(b,[t,u])}
+  if(it.ow){const t=it.ow;if(t.gone||u.struck)return null;u.facing=Math.atan2(t.y-u.y,t.x-u.x);u.revealed=b.t+TB.ROUND;visDirty(b);tbRangedHit(b,u,t,false);shotFx(b,u,t,TYPES[u.type].ranged);u.struck=true;return tbApply(b,[t,u])}
   const pl=tbPlan(b,u);if(!pl||!pl.attack||!pl.t||pl.t.gone)return null;const t=pl.t;
   if(pl.melee&&!(u.contacts||[]).includes(t)&&dist(u,t)>contactDist(u,t)+10)return null;
-  u.facing=Math.atan2(t.y-u.y,t.x-u.x);
+  u.facing=Math.atan2(t.y-u.y,t.x-u.x);u.revealed=b.t+TB.ROUND;visDirty(b);
   if(pl.ranged){tbRangedHit(b,u,t,u.movedThisRound);shotFx(b,u,t,TYPES[u.type].ranged)}
   else{tbMeleeHit(b,u,t,pl.charge&&u.movedThisRound);for(let k=0;k<8;k++)b.fx.push({k:'dust',x:(u.x+t.x)/2+(Math.random()-.5)*28,y:(u.y+t.y)/2+(Math.random()-.5)*18,life:.7,max:.7,delay:Math.random()*.25})}
   u.struck=true;
@@ -1268,14 +1379,20 @@ function tbMeleeAll(b){
     if(c.struck)continue;tbMeleeHit(b,u,c,false);hit.push(u,c);for(let i=0;i<5;i++)b.fx.push({k:'dust',x:(u.x+c.x)/2+(Math.random()-.5)*24,y:(u.y+c.y)/2+(Math.random()-.5)*16,life:.7,max:.7,delay:Math.random()*.3})}}
   return tbApply(b,[...new Set(hit)]);
 }
-function tbEndRound(b){
+function tbEndRound(b){visDirty(b);
   b.t+=TB.ROUND;
   b.s.events.forEach((e,i)=>{if(b.evDone.has(i))return;if(b.t>=e.t){b.evDone.add(i);if(e.fn)e.fn(b);b.msgs.push({text:e.msg,kind:'event'})}});
   for(const u of tbLive(b)){
-    if(!u.rout&&!u.hitThisRound&&!(u.contacts&&u.contacts.length))u.morale=Math.min(100,u.morale+8+(u.inspired?6:0));
+    if(!u.rout&&!u.hitThisRound&&!(u.contacts&&u.contacts.length)&&(u.supp||0)<50)u.morale=Math.min(100,u.morale+8+(u.inspired?6:0));
+    if(u.supp)u.supp=Math.max(0,u.supp-(u.hitThisRound?12:30)*(u.inspired?1.4:1));
     u.dugIn=!u.movedThisRound&&!u.rout;if(!u.movedThisRound)u.fatigue=Math.max(0,(u.fatigue||0)-.08);
     u.stillT=u.dugIn?10:0;u.rallyCd=Math.max(0,u.rallyCd-TB.ROUND);
     u.hitThisRound=false;u.movedThisRound=false;u.struck=false;u._plan=null;
+    /* a move that makes no progress for two rounds (and is not stopped by combat or suppression) is dropped and reported, never retried forever */
+    if(u.order&&u.order.kind==='move'&&!u.rout){const dd=Math.hypot(u.order.x-u.x,u.order.y-u.y),busy=(u.contacts&&u.contacts.length)||(u.supp||0)>70||(u.order.amove&&!!amoveTarget(b,u,tbMoveRange(b,u)));
+      if(dd>=6&&u._od!=null&&dd>u._od-2&&!busy)u._stall=(u._stall||0)+1;else u._stall=0;u._od=dd;
+      if(u._stall>=2){if(u.side==='P')b.msgs.push({text:`${u.name} cannot reach its position and halts there.`,kind:'bad'});u._blocked={x:u.order.x,y:u.order.y,t:b.t};u.order=null;u._stall=0;u._od=null}}
+    else{u._od=null;u._stall=0}
     if(u.order&&u.order.kind==='move'&&Math.hypot(u.order.x-u.x,u.order.y-u.y)<6){if(u.order.face!=null)u.facing=u.order.face;u.order=null}
     if(u.order&&u.order.kind==='attack'){const t=byId(b,u.order.target);if(!t||t.gone||t.rout)u.order=null}
     if(u.side==='E')u.order=null;
@@ -1564,6 +1681,7 @@ makeBattle=function(id,diff){const s0=SCEN[id],th0=theatreOf(s0),key=th0==='sea'
       if(th==='sea'||th==='space'){u.men=u.maxMen=Math.round(Math.max(u.men,avg*1.6));u.def=2.6;u.melee=th==='sea'&&key==='galley'?1.8:.6;u.w=th==='space'?60:56;u.speed=th==='space'?30:24;u.aura=200}
       else{u.men=u.maxMen=Math.round(Math.max(u.men,Math.min(avg*.35,1200)));u.def=1.8}
       if(th==='sea'){u.naval=true;u.armor=b.s.era==='navy'||b.s.era==='dread'?'hull':'wood'}if(th==='space'){u.air=true;u.space=true;u.armor='capital'}}}
+  for(const u of b.units){u.form=null;setForm(u,u.startForm||'line')}
   b.init={P:sideMen(b,'P'),E:sideMen(b,'E')};
   if(b.s.mirror||b.s.endless)b.s.city=b.s.city||th==='city';
   return b};
@@ -2037,11 +2155,9 @@ const RANGE_TUNE={arc:150,elf:190,mage:170,art:300,
   walker:150,iclad:300,ffg:240,fac:240,tbd:240,lcr:340,sdd:320,scarrier:380,ddg:420,bship:420,bcr:470,dread:480,carrier:600};
 for(const k in RANGE_TUNE)if(TYPES[k]&&TYPES[k].ranged)TYPES[k].ranged.range=RANGE_TUNE[k];
 FLAG_GUN.dread.range=500;FLAG_GUN.navy.range=420;FLAG_GUN.space.range=400;
-/* field guns fire over open sights: they need line of sight like any direct-fire weapon */
-INDIRECT.delete('cannon');
 /* indirect fire lands where an observer can see: the gun itself, a unit nearby, or a scout from further away */
 const OBSERVED=new Set(['shell','rocket','mortar','siege']);
-const ENG_WHY={armor:'Its weapons cannot hurt this target',range:'Out of range',min:'Too close for its guns',hill:'No line of sight: a hill is in the way',woods:'No line of sight: woods are in the way',buildings:'No line of sight: buildings are in the way',observer:'No observer: none of your units can see the target'};
+const ENG_WHY={armor:'Its weapons cannot hurt this target',range:'Out of range',min:'Too close for its guns',hill:'No line of sight: a hill is in the way',woods:'No line of sight: woods are in the way',buildings:'No line of sight: buildings are in the way',observer:'No observer: none of your units can see the target',unseen:'Not in sight: none of your units can see it'};
 const eyeH=u=>VEH.has(u.type)?4:(u.type==='cav'||u.type==='gen')?5:3;
 /* line of sight over the real ground (the same heights the 3D view draws): hills, woods and buildings block it */
 function losInfo(b,a,c){
@@ -2054,29 +2170,45 @@ function losInfo(b,a,c){
     if(tt==='woods'){woods+=seg;if(woods>24)return{ok:false,why:'woods'}}
     else if(tt==='town'){town+=seg;if(town>(b.s.city?14:24))return{ok:false,why:'buildings'}}}
   return{ok:true}}
-function observerRange(b,o){const r=spotR(b.s.era)*1.6;return o.type==='drone'||o.type==='orni'?r*2.2:(o.scout||o.type==='sniper')?r*1.7:r}
 /* who on the shooter's side can see the target for an indirect-fire weapon (the shooter at p counts too) */
 function observerFor(b,a,p,c){
-  const sees=o=>Math.hypot(o.x-c.x,o.y-c.y)<observerRange(b,o)&&(o.air||losInfo(b,o,c).ok);
-  if(sees(p))return a;
-  for(const o of b.units){if(o===a||o.side!==a.side||o.gone||o.rout)continue;if(sees(o))return o}
+  if(seesUnit(b,p,c))return a;
+  for(const o of b.units){if(o===a||o.side!==a.side||o.gone||o.rout)continue;if(seesUnit(b,o,c))return o}
   return null}
+/* ---------- visibility (fog of war) ----------
+   A side sees an enemy unit when one of its units is within sight range and has line of sight to it.
+   Woods, towns and stealthy units hide a target until someone is close (spotR); firing gives a unit away
+   until the end of the next round; anything in contact is seen. Results are cached per battle and
+   dropped whenever units move, die or fire (visDirty). */
+const SIGHT={modern:280,napoleon:440,steam:360,magic:440,ancient:440,old:440,navy:540,dread:540,sail:440,space:540};
+function sightOf(b,u){let r=SIGHT[b.s.era]||420;
+  if(u.type==='recon'||u.scout)r*=1.6;else if(u.type==='drone'||u.type==='orni')r*=1.5;else if(u.type==='sniper')r*=1.3;else if(u.air)r*=1.3;else if(u.type==='gen')r*=1.15;
+  if(!u.air&&terr(b,u.x,u.y)==='hill')r*=1.15;return r}
+function seesUnit(b,o,t){
+  const d=dist(o,t);if(d<contactDist(o,t)+20)return true;if(d>sightOf(b,o))return false;
+  if(tbConcealed(b,t)){const R=spotR(b.s.era)*(t.type==='sub'||t.type==='uboat'?.8:1);if(d>(o.type==='drone'||o.type==='swarm'?R*2.2:o.scout||o.type==='recon'?R*2.6:R))return false}
+  return o.air||t.air||losInfo(b,o,t).ok}
+function visDirty(b){if(b)b._vis=null}
+/* does `side` currently see unit t? (own units are always known) */
+function sideSees(b,side,t){
+  if(t.side===side)return true;if(b.fogOff)return true;
+  if(t.revealed!=null&&b.t<=t.revealed)return true;
+  if(!b._vis)b._vis={};let S=b._vis[side];
+  if(!S){S=b._vis[side]=new Set();const own=b.units.filter(o=>o.side===side&&!o.gone&&!o.rout);
+    for(const t2 of b.units){if(t2.side===side||t2.gone)continue;if(own.some(o=>seesUnit(b,o,t2))){S.add(t2.id);(b.lastSeen=b.lastSeen||{})[t2.id]={x:t2.x,y:t2.y,f:t2.facing,t:b.t,type:t2.type}}}}
+  return S.has(t.id)}
+/* the player's view of an enemy: hidden means not drawn, not pickable, no badge */
+function hiddenFromPlayer(u){return !!(G.b&&u.side==='E'&&!u.gone&&!sideSees(G.b,'P',u))}
 /* can unit a hit target t, firing from its current spot or from p={x,y}? returns {ok, why, d} */
 function canEngage(b,a,t,p){
   const R=TYPES[a.type].ranged;if(!R)return{ok:false,why:'armor'};
   if(!(WEAP[R.w][t.armor]>0))return{ok:false,why:'armor'};
+  if(!sideSees(b,a.side,t))return{ok:false,why:OBSERVED.has(R.w)&&!a.air?'observer':'unseen'};
   const s=p?Object.assign({},a,{x:p.x,y:p.y}):a,d=dist(s,t);
   if(d>R.range)return{ok:false,why:'range',d};if(d<(R.min||0))return{ok:false,why:'min',d};
   if(OBSERVED.has(R.w)&&!a.air){const o=observerFor(b,a,s,t);return o?{ok:true,d,obs:o}:{ok:false,why:'observer',d}}
   if(!INDIRECT.has(R.w)){const l=losInfo(b,s,t);if(!l.ok)return{ok:false,why:l.why,d}}
   return{ok:true,d}}
-/* the turn engine's own line-of-sight question, now answered by the shared rule */
-tbLOS=function(b,a,c){const R=TYPES[a.type].ranged;if(!R)return true;const e=canEngage(b,a,c);return e.ok||e.why==='range'||e.why==='min'||e.why==='armor'};
-/* indirect fire without an observer holds still instead of driving the guns at the target */
-const _tbPlanEng=tbPlan;
-tbPlan=function(b,u){const pl=_tbPlanEng(b,u);
-  if(pl&&pl.noLos&&pl.t){const R=TYPES[u.type].ranged;if(R&&OBSERVED.has(R.w))return{pts:[[u.x,u.y]],used:0,attack:false,ranged:true,t:pl.t,noObs:true}}
-  return pl};
 /* the enemy prefers targets its guns can actually engage */
 const _chooseTargetEng=chooseTarget;
 chooseTarget=function(b,u,foes,pref){const R=TYPES[u.type].ranged;if(R&&!pref){const ok=foes.filter(f=>canEngage(b,u,f).ok);if(ok.length)return _chooseTargetEng(b,u,ok,pref)}return _chooseTargetEng(b,u,foes,pref)};
@@ -2485,12 +2617,25 @@ function v3build(id){
 }
 function v3fit(){const el=V3.renderer?V3.renderer.domElement:null,w=el&&el.clientWidth||W,h=el&&el.clientHeight||H;const top=h<540?46:64,bot=h<540?96:(w<=700?190:150),he=Math.max(140,h-top-bot),a=w/he;
   V3.cam.tx=0;V3.cam.dist=Math.min(DMAX,Math.max(700,540/Math.tan(18*Math.PI/180)/Math.max(1,Math.min(a,1.9))*0.82+330));if(h<540&&w>h)V3.cam.dist=Math.max(640,V3.cam.dist*.7);V3.cam.tz=30+(bot-top)/h*V3.cam.dist*(w<h?.12:.42);V3.cam.yaw=V3.cam.yawT=0}
-function v3clamp(){const c=V3.cam;c.dist=Math.max(DMIN,Math.min(DMAX,c.dist));c.tx=Math.max(-W/2,Math.min(W/2,c.tx));c.tz=Math.max(-H/2,Math.min(H/2,c.tz))}
+function v3clamp(){const c=V3.cam;c.dist=Math.max(DMIN,Math.min(DMAX,c.dist));if(c.distT!=null)c.distT=Math.max(DMIN,Math.min(DMAX,c.distT));c.tx=Math.max(-W/2,Math.min(W/2,c.tx));c.tz=Math.max(-H/2,Math.min(H/2,c.tz))}
+/* camera: smooth zoom that keeps the ground under the cursor fixed, an optional glide to a focus point,
+   rotation easing and a player tilt on top of the zoom-dependent pitch */
 function v3placeCamera(){
   const c=V3.cam;c.yaw+=(c.yawT-c.yaw)*0.18;
-  const t=Math.min(1,(c.dist-DMIN)/(1120-DMIN)),pitch=0.52+t*0.72,cam=V3.camera,ty=G.b?heightAt(G.b.id,c.tx+W/2,c.tz+H/2)*0.8:0;
+  if(c.distT==null||c._ld!==c.dist)c.distT=c.dist;
+  if(Math.abs(c.distT-c.dist)>.5){c.dist+=(c.distT-c.dist)*.22}else c.dist=c.distT;c._ld=c.dist;
+  if(c.gx!=null){c.tx+=(c.gx-c.tx)*.16;c.tz+=(c.gz-c.tz)*.16;if(Math.abs(c.gx-c.tx)+Math.abs(c.gz-c.tz)<.5)c.gx=c.gz=null}
+  v3aim();
+  if(c.anchor){const g=v3planeHit(c.anchor.cx,c.anchor.cy,c.anchor.h);if(g){c.tx+=c.anchor.x-g.x;c.tz+=c.anchor.y-g.y;v3clamp();v3aim()}if(c.dist===c.distT)c.anchor=null}
+  const sk=(G.shake||0)*c.dist/900,cam=V3.camera;if(sk){cam.position.x+=(Math.random()-.5)*sk;cam.position.y+=(Math.random()-.5)*sk;cam.updateMatrixWorld()}
+}
+/* the ground point under a screen position, on the horizontal plane at height h (cheap, used while zooming) */
+function v3planeHit(clientX,clientY,h){const el=V3.renderer.domElement,r=el.getBoundingClientRect(),ndc=V3.tmp.ndc||(V3.tmp.ndc=new THREE.Vector2());ndc.set((clientX-r.left)/r.width*2-1,-(clientY-r.top)/r.height*2+1);
+  V3.ray.setFromCamera(ndc,V3.camera);const o=V3.ray.ray.origin,d=V3.ray.ray.direction;if(Math.abs(d.y)<1e-6)return null;const k=(h-o.y)/d.y;if(k<0)return null;return{x:o.x+d.x*k+W/2,y:o.z+d.z*k+H/2}}
+function v3aim(){
+  const c=V3.cam,t=Math.min(1,(c.dist-DMIN)/(1120-DMIN)),pitch=Math.max(.28,Math.min(1.45,0.52+t*0.72+(c.tilt||0))),cam=V3.camera,ty=G.b?heightAt(G.b.id,c.tx+W/2,c.tz+H/2)*0.8:0;
   cam.position.set(c.tx+Math.sin(c.yaw)*Math.cos(pitch)*c.dist,ty+Math.sin(pitch)*c.dist,c.tz+Math.cos(c.yaw)*Math.cos(pitch)*c.dist);
-  const sk=(G.shake||0)*c.dist/900;cam.position.x+=(Math.random()-.5)*sk;cam.position.y+=(Math.random()-.5)*sk;cam.lookAt(c.tx,ty,c.tz);cam.updateMatrixWorld();
+  cam.lookAt(c.tx,ty,c.tz);cam.updateMatrixWorld();
 }
 function v3resize(w,h){if(!V3.ok)return;V3.renderer.setSize(w,h,false);V3.camera.aspect=w/h;V3.camera.updateProjectionMatrix()}
 function v3ground(clientX,clientY){
@@ -2511,15 +2656,15 @@ function v3project(x,y,hOff,cw,ch){
 function v3unitFigures(u,now,era){
   const T=u.type,S=ERA_COL[era][u.side],L=unitLayout(u),j=jitter(u),out=[];
   const engaged=u.contacts&&u.contacts.length>0,veh=VEH.has(T);
-  const thin=V3.low&&L.cols*L.rows>14;
-  for(let r=L.rows-1;r>=0;r--)for(let i=0;i<L.cols;i++){
+  const FS=figSlots(u),thin=V3.low&&FS.length>14;
+  for(let n=0;n<FS.length;n++){const s0=FS[n],r=s0.r,i=s0.i;
     if(thin&&(r+i)%2)continue;
-    const q=j[(r*L.cols+i)%j.length];
-    let x=L.ox+i*L.sx+q.x*(T==='arc'||T==='minf'?2.6:T==='cav'||veh?1.6:0.9),y=L.oy+r*L.sy+q.y*(T==='arc'?2:1),bob=0;
+    const q=j[n%j.length];
+    let x=s0.x+q.x*(T==='arc'||T==='minf'?2.6:T==='cav'||veh?1.6:0.9)*(u.form==='skirmish'?1.6:1),y=s0.y+q.y*(T==='arc'?2:1),bob=0;
     if(u.rout){x*=1.7;y=y*1.9+q.y*6}
     else if(engaged&&r<2&&!veh){x+=Math.sin(now*.03+q.p*3)*.6;y+=Math.cos(now*.027+q.p*2)*.6}
     else if(u.moving&&!veh)bob=Math.abs(Math.sin(now*.012+q.p))*.5;
-    out.push({x,y,bob,front:r===0,q});
+    out.push({x,y,bob,front:s0.front,q,rot:s0.rot});
   }
   return out;
 }
@@ -2528,14 +2673,15 @@ function v3render(now){
   for(const k in P)P[k].count=0;
   const put=(name,X,Y,Z,quat,sx,sy,sz,col)=>{const m=P[name];if(m.count>=m.instanceMatrix.count)return;tm.p.set(X,Y,Z);tm.s.set(sx,sy,sz);tm.m.compose(tm.p,quat,tm.s);m.setMatrixAt(m.count,tm.m);m.setColorAt(m.count,hx(col));m.count++};
   const fogHide=b.s.fog&&b.t<b.s.fog;
-  const local=new THREE.Vector3(),qf=new THREE.Quaternion(),qt=new THREE.Quaternion(),qb=new THREE.Quaternion(),qx=new THREE.Quaternion();
+  const local=new THREE.Vector3(),qf0=new THREE.Quaternion(),qr0=new THREE.Quaternion(),qf=new THREE.Quaternion(),qt=new THREE.Quaternion(),qb=new THREE.Quaternion(),qx=new THREE.Quaternion();
   for(const u of b.units){
-    if(u.gone)continue;
-    const S=ERA_COL[era][u.side],T=u.type,th=-(u.facing+Math.PI/2);qf.setFromAxisAngle(tm.up,th);
+    if(u.gone||hiddenFromPlayer(u))continue;
+    const S=ERA_COL[era][u.side],T=u.type,th=-(u.facing+Math.PI/2);qf.setFromAxisAngle(tm.up,th);qf0.copy(qf);
     let tth=th;if((T==='tank'||T==='ifv'||T==='howz'||T==='sam')&&u.firing){tth=-(Math.atan2(u.firing.y-u.y,u.firing.x-u.x)+Math.PI/2)}qt.setFromAxisAngle(tm.up,tth);
     const figs=v3unitFigures(u,now,era),ca=Math.cos(u.facing+Math.PI/2),sa=Math.sin(u.facing+Math.PI/2);
     const side=u.side==='P'?'#4E8FE0':'#F08A3C';
     for(const f of figs){
+      if(f.rot)qf.copy(qf0).multiply(qr0.setFromAxisAngle(tm.up,-f.rot));else qf.copy(qf0);
       const wx=u.x+f.x*ca-f.y*sa,wy=u.y+f.x*sa+f.y*ca;if(wx<0||wx>W||wy<0||wy>H)continue;
       const h=(u.naval?0:heightAt(b.id,wx,wy))+(V3.roof&&!u.air&&!VEH.has(T)?roofAt(wx,wy):0)+(u.air?(T==='heli'?38:T==='lm'?20:T==='jet'?70:T==='dragon'?44:u.space?(T==='bship'||T==='scarrier'||T==='gen'?18:T==='sdd'?24:30):26)+Math.sin(now*.004+f.q.p)*2:0)+(T==='griffin'?14+Math.sin(now*.006+f.q.p)*2:0)+f.bob+(u.naval?(T==='sub'||T==='uboat'?-1.2:-.4)+Math.sin(now*.002+f.q.p+wx*.05)*.35:0),X=wx-W/2,Z=wy-H/2;
       const at=(lx,ly,lz,quat)=>{local.set(lx,ly,lz).applyQuaternion(quat||qf);return[X+local.x,h+local.y,Z+local.z]};
@@ -2730,7 +2876,7 @@ const ERA_NAME={glasssky:'21st century',cannae:'Antiquity',agincourt:'Middle Age
 const cv=$('cv'),ctx=cv.getContext('2d'),cv3=$('cv3'),ov=$('ov'),oc=ov.getContext('2d');
 const terrainCv=document.createElement('canvas'),decalCv=document.createElement('canvas');
 const TURNS=[4,6,9],TURN_NAME={4:'Short',6:'Normal',9:'Long'},PLAYBACK=2.6;
-const G={pop:{},shake:0,turnLen:6,turn:0,turnLeft:0,cam:{x:0,y:0,z:1},view:'3d',floats:[],hits:[],q:null,ptrs:new Map(),pan:null,pinch:null,space:false,b:null,id:null,mode:'menu',speed:1,sel:new Set(),inspect:null,acc:0,last:performance.now(),hover:null,drag:null,pings:[],cssW:0,cssH:0,toastEls:[],diff:'normal'};
+const G={formGap:1,grpN:0,pop:{},shake:0,turnLen:6,turn:0,turnLeft:0,cam:{x:0,y:0,z:1},view:'3d',floats:[],hits:[],q:null,ptrs:new Map(),pan:null,pinch:null,space:false,b:null,id:null,mode:'menu',speed:1,sel:new Set(),inspect:null,acc:0,last:performance.now(),hover:null,drag:null,pings:[],cssW:0,cssH:0,toastEls:[],diff:'normal'};
 try{G.turnLen=+localStorage.getItem('fc-turn');if(!TURNS.includes(G.turnLen))G.turnLen=6;G.diff=localStorage.getItem('fc-diff')||'normal';G.view=localStorage.getItem('fc-view')||'3d'}catch(e){}
 const fmt=n=>n>=1000?(n/1000).toFixed(n>=10000?0:1)+'k':String(Math.round(n));
 const fmtFull=n=>Math.round(n).toLocaleString('en-US');
@@ -2854,8 +3000,10 @@ function buildEndlessMenu(){buildMirrorMenu();
   $('continue-camp').hidden=!G.camp;$('continue-camp').onclick=()=>openMuster();
 }
 function setView(v){
-  if(v==='3d'&&!has3d())v='2d';G.view=v;try{localStorage.setItem('fc-view',v)}catch(e){}
-  cv.hidden=v!=='2d';cv3.hidden=v!=='3d';$('v-toggle').textContent=v==='3d'?'2D':'3D';if(G.b)fitView();
+  if(v==='3d'&&!has3d())v='2d';try{localStorage.setItem('fc-view',v)}catch(e){}
+  const keep=G.b&&G.mode!=='deploy'&&G.viewSet?viewFocus():null;G.view=v;G.viewSet=true;
+  cv.hidden=v!=='2d';cv3.hidden=v!=='3d';$('v-toggle').textContent=v==='3d'?'2D':'3D';
+  if(G.b){if(!keep)fitView();else if(v==='3d'){const c=V3.cam;c.tx=keep.x-W/2;c.tz=keep.y-H/2;c.dist=c.distT=Math.max(DMIN,Math.min(DMAX,1100/keep.z));c.gx=c.gz=null;c.anchor=null;v3clamp()}else{G.cam.z=keep.z;const vv=view2d();G.cam.x=keep.x-vv.w/2;G.cam.y=keep.y-vv.h/2;clamp2d()}}
   document.querySelectorAll('.rot').forEach(b=>b.hidden=v!=='3d');
 }
 function resize(){if(G.b&&$('mini'))setTimeout(applyMini,0);
@@ -2880,11 +3028,12 @@ function P(x,y,h){
   const s=base2d()*G.cam.z;return{x:(x-G.cam.x)*s,y:(y-G.cam.y)*s-(h||0)*s*.45,s,vis:true};
 }
 function zoomBy(f,X,Y){
-  if(G.view==='3d'){const r=ov.getBoundingClientRect(),cx=r.left+X,cy=r.top+Y,a=v3ground(cx,cy);V3.cam.dist*=1/f;v3clamp();v3placeCamera();const b2=v3ground(cx,cy);if(a&&b2){V3.cam.tx+=a.x-b2.x;V3.cam.tz+=a.y-b2.y;v3clamp()}return}
+  if(G.view==='3d'){const r=ov.getBoundingClientRect(),cx=r.left+X,cy=r.top+Y,c=V3.cam,a=v3ground(cx,cy);if(c.distT==null)c.distT=c.dist;c.distT=Math.max(DMIN,Math.min(DMAX,c.distT/f));c.gx=c.gz=null;
+    if(a)c.anchor={cx,cy,x:a.x,y:a.y,h:G.b?heightAt(G.b.id,a.x,a.y):0};return}
   const c=G.cam,s0=base2d()*c.z,wx=c.x+X/s0,wy=c.y+Y/s0;c.z=Math.max(1,Math.min(3,c.z*f));const s1=base2d()*c.z;c.x=wx-X/s1;c.y=wy-Y/s1;clamp2d();
 }
 function panBy(dx,dy){
-  if(G.view==='3d'){const c=V3.cam,p=v3project(c.tx+W/2,c.tz+H/2,0,G.cssW,G.cssH),k=1/Math.max(.05,p.s);
+  if(G.view==='3d'){const c=V3.cam,p=v3project(c.tx+W/2,c.tz+H/2,0,G.cssW,G.cssH),k=1/Math.max(.05,p.s);c.gx=c.gz=null;c.anchor=null;
     const rx=Math.cos(c.yaw),rz=-Math.sin(c.yaw),fx=-Math.sin(c.yaw),fz=-Math.cos(c.yaw);
     c.tx+=-dx*k*rx+dy*k*fx;c.tz+=-dx*k*rz+dy*k*fz;v3clamp();return}
   const s=base2d()*G.cam.z;G.cam.x-=dx/s;G.cam.y-=dy/s;clamp2d();
@@ -2897,7 +3046,7 @@ function applyMini(){const on=!!G.b&&miniOn();$('mini').hidden=!on;document.body
 function miniGround(x,y,ov){for(let k=0;k<40;k++){const p=v3ground(x,y);if(p)return p;y+=(ov.bottom-ov.top)/40}return null}
 function drawMini(){const el=$('mini'),b=G.b;if(!el||el.hidden||!b)return;const r=el.getBoundingClientRect();if(!r.width)return;const dpr=Math.min(2,window.devicePixelRatio||1),w=Math.round(r.width*dpr),h=Math.round(r.height*dpr);if(el.width!==w||el.height!==h){el.width=w;el.height=h}
   const c=el.getContext('2d'),k=w/W,ky=h/H;c.setTransform(1,0,0,1,0,0);c.drawImage(miniBg(),0,0,w,h);c.fillStyle='rgba(8,10,12,.22)';c.fillRect(0,0,w,h);const now=performance.now();
-  for(const u of b.units){if(u.gone)continue;if(u.side==='E'&&!tbSpotted(b,'P',u))continue;const col=u.type==='gen'?'#FFC53D':u.side==='P'?'#6FA8FF':'#FF6A5A';
+  for(const u of b.units){if(u.gone)continue;if(hiddenFromPlayer(u))continue;const col=u.type==='gen'?'#FFC53D':u.side==='P'?'#6FA8FF':'#FF6A5A';
     c.save();c.translate(u.x*k,u.y*ky);c.globalAlpha=u.rout?.4:1;if(u.hitThisRound&&G.mode==='exec'&&Math.sin(now*.02)>0){c.globalAlpha=1;c.shadowColor='#fff';c.shadowBlur=6*dpr}c.fillStyle=col;
     if(u.type==='gen'){c.beginPath();c.arc(0,0,3.4*dpr,0,7);c.fill();c.strokeStyle='#111';c.lineWidth=dpr;c.stroke()}
     else{c.rotate(u.facing+Math.PI/2);const ww=Math.max(3.4*dpr,u.w*k),dd=Math.max(2.2*dpr,(u.dd||u.d)*k*.8);c.fillRect(-ww/2,-dd/2,ww,dd);if(G.sel.has(u.id)){c.strokeStyle='#fff';c.lineWidth=1.4*dpr;c.strokeRect(-ww/2-1.5*dpr,-dd/2-1.5*dpr,ww+3*dpr,dd+3*dpr)}}c.restore()}
@@ -2906,15 +3055,21 @@ function drawMini(){const el=$('mini'),b=G.b;if(!el||el.hidden||!b)return;const 
   if(pts){c.beginPath();pts.forEach((p,i)=>{const X=Math.max(-40,Math.min(W+40,p.x))*k,Y=Math.max(-40,Math.min(H+40,p.y))*ky;i?c.lineTo(X,Y):c.moveTo(X,Y)});c.closePath();c.fillStyle='rgba(255,255,255,.07)';c.fill();c.strokeStyle='rgba(255,255,255,.92)';c.lineWidth=1.5*dpr;c.stroke()}}
 function miniJump(e){const r=$('mini').getBoundingClientRect(),x=(e.clientX-r.left)/r.width*W,y=(e.clientY-r.top)/r.height*H;
   if(G.view==='3d'){V3.cam.tx=x-W/2;V3.cam.tz=y-H/2;v3clamp()}else{const v=view2d();G.cam.x=x-v.w/2;G.cam.y=y-v.h/2;clamp2d()}}
-function centerOn(x,y){if(G.view==='3d'){V3.cam.tx=x-W/2;V3.cam.tz=y-H/2;V3.cam.dist=Math.min(V3.cam.dist,420);v3clamp()}else{const c=G.cam;c.z=Math.max(c.z,1.8);const v=view2d();c.x=x-v.w/2;c.y=y-v.h/2;clamp2d()}}
-function fitView(){if(G.view==='3d')v3fit();else{G.cam={x:0,y:0,z:1};clamp2d()}}
+function centerOn(x,y){if(G.view==='3d'){const c=V3.cam;c.gx=Math.max(-W/2,Math.min(W/2,x-W/2));c.gz=Math.max(-H/2,Math.min(H/2,y-H/2));c.anchor=null;c.distT=Math.min(c.distT||c.dist,420)}else{const c=G.cam;c.z=Math.max(c.z,1.8);const v=view2d();c.x=x-v.w/2;c.y=y-v.h/2;clamp2d()}}
+function fitView(){if(G.view==='3d'){v3fit();V3.cam.distT=V3.cam.dist;V3.cam.gx=V3.cam.gz=null;V3.cam.anchor=null;V3.cam.tilt=0}else{G.cam={x:0,y:0,z:1};clamp2d()}}
+/* L: bring the camera to the selected units */
+function focusSel(){const us=selUnits();if(!us.length){toast({text:'Select units first; L brings the camera to them.',kind:'event'});return}centerOn(us.reduce((a,u)=>a+u.x,0)/us.length,us.reduce((a,u)=>a+u.y,0)/us.length)}
+/* spacing between units in a group formation; reforms a selection that already has a formation */
+function setFormGap(v){G.formGap=Math.max(.4,Math.min(3,v));const e=$('fg-val');if(e)e.textContent=G.formGap.toFixed(1)+'×';const sel=selUnits(),k=selForm(sel);if(k&&sel.length>1)setGroupForm(k);else toast({text:`Formation spacing ${G.formGap.toFixed(1)}×`,kind:'event'})}
+/* the world point at the centre of the current view and an equivalent zoom, so switching 2D/3D keeps your place */
+function viewFocus(){if(G.view==='3d'&&V3.ok)return{x:V3.cam.tx+W/2,y:V3.cam.tz+H/2,z:Math.max(1,Math.min(3,1100/V3.cam.dist))};const v=view2d();return{x:G.cam.x+v.w/2,y:G.cam.y+v.h/2,z:G.cam.z}}
 function render2d(now){
   const b=G.b,cam=G.cam,dpr=cv.width/G.cssW,k=base2d()*cam.z*dpr;
   ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#0E0D0A';ctx.fillRect(0,0,cv.width,cv.height);
   ctx.setTransform(k,0,0,k,-cam.x*k,-cam.y*k);ctx.shadowColor='rgba(0,0,0,.7)';ctx.shadowBlur=30*dpr;ctx.drawImage(terrainCv,0,0,W,H);ctx.shadowBlur=0;ctx.drawImage(decalCv,0,0,W,H);
   const sh=G.shake*(cv.width/G.cssW);ctx.setTransform(k,0,0,k,-cam.x*k+(Math.random()-.5)*sh,-cam.y*k+(Math.random()-.5)*sh);
   const fogHide=b.s.fog&&b.t<b.s.fog;
-  [...b.units].filter(u=>!u.gone).sort((a,c)=>(a.air?1:0)-(c.air?1:0)||a.y-c.y).forEach(u=>drawUnit(ctx,u,false,now,era()));
+  [...b.units].filter(u=>!u.gone&&!hiddenFromPlayer(u)).sort((a,c)=>(a.air?1:0)-(c.air?1:0)||a.y-c.y).forEach(u=>drawUnit(ctx,u,false,now,era()));
   if(fogHide){ctx.setTransform(1,0,0,1,0,0);const gg=ctx.createLinearGradient(0,0,0,cv.height*.65);gg.addColorStop(0,'rgba(205,212,216,.35)');gg.addColorStop(1,'rgba(205,212,216,0)');ctx.fillStyle=gg;ctx.fillRect(0,0,cv.width,cv.height*.65)}
   if(b.s.dusk&&b.s.timer){const t=b.t/b.s.timer.t,a=Math.min(.38,Math.max(0,t-.55)*.85);if(a>0){ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=`rgba(25,12,40,${a})`;ctx.fillRect(0,0,cv.width,cv.height)}}
 }
@@ -2934,38 +3089,70 @@ function stampDecals(){
 function inDeploy(x,y){return y>=G.b.s.deploy&&!blocked(G.b,{},x,y)}
 function place(u,x,y,face){
   x=Math.max(8,Math.min(W-8,x));y=Math.max(G.b.s.deploy,Math.min(H-8,y));
-  if(blocked(G.b,u,x,y))return;u.x=x;u.y=y;if(face!=null)u.facing=face;u.order=null;u.wantFace=null;
+  if(blocked(G.b,u,x,y))return;u.x=x;u.y=y;if(face!=null)u.facing=face;u.order=null;u.wantFace=null;visDirty(G.b);
 }
-function issue(p,target){
-  const b=G.b,sel=selUnits();if(!sel.length||G.mode==='wait')return;if(!(target&&target.side==='E'&&G.mode==='deploy'))pushUndo(sel);
+/* the nearest passable spot to (x,y) for unit u: orders into a river or a building land beside it */
+function openGround(b,u,x,y){x=Math.max(10,Math.min(W-10,x));y=Math.max(10,Math.min(H-10,y));if(!blocked(b,u,x,y))return{x,y};
+  for(let r=6;r<130;r+=6)for(let a=0;a<6.28;a+=.35){const X=x+Math.cos(a)*r,Y=y+Math.sin(a)*r;if(X<10||X>W-10||Y<10||Y>H-10)continue;if(!blocked(b,u,X,Y))return{x:X,y:Y,moved:true}}return null}
+/* the drill a selection moves in together, or null when the player arranged them by hand (custom) */
+function selForm(sel){const k=sel.length&&sel[0].gform;return k&&sel.every(u=>u.gform===k)?k:null}
+/* where each selected unit goes for an order at p. Shared by the preview and the real order.
+   face: facing for the whole group (null = from the direction of travel); frontage: width of a drawn line;
+   kind: force a geometry (a drawn battle line uses 'line' for a custom selection) */
+function planGroupMove(sel,p,faceIn,frontage,kindIn){
+  if(!sel.length)return[];
+  const cx=sel.reduce((a,s)=>a+s.x,0)/sel.length,cy=sel.reduce((a,s)=>a+s.y,0)/sel.length,kind=kindIn||selForm(sel);
+  if(sel.length===1)return[{u:sel[0],x:p.x,y:p.y,face:faceIn!=null?faceIn:null}];
+  if(!kind)return sel.map(s=>({u:s,x:p.x+s.x-cx,y:p.y+s.y-cy,face:faceIn!=null?faceIn:s.facing}));
+  const face=faceIn!=null?faceIn:(Math.hypot(p.x-cx,p.y-cy)>40?Math.atan2(p.y-cy,p.x-cx):meanFacing(sel));
+  return groupSlots(kind,sel,p.x,p.y,face,G.formGap,frontage).map(sl=>({u:sl.u,x:sl.x,y:sl.y,face}))}
+/* turn planned slots into orders (or deployment), with immediate feedback when a slot cannot be reached */
+function commitMoves(moves,opt){
+  opt=opt||{};const b=G.b;let bad=0;const grp=moves.length>1&&opt.grp?++G.grpN:null;
+  for(const m of moves){const s=m.u,g=openGround(b,s,m.x,m.y);if(!g){ack(s,'Cannot go there');bad++;continue}
+    if(G.mode==='deploy'){place(s,g.x,g.y,m.face!=null?m.face:undefined);continue}
+    setOrd(b,s,{kind:'move',x:g.x,y:g.y,face:m.face,grp,amove:!!opt.amove});s.wantFace=null;s._blocked=null;
+    const pl=tbPlan(b,s);if(pl&&pl.noRoute){s.order=null;ack(s,'No route there');bad++;continue}
+    ack(s,opt.label||(opt.amove?'Advance, engage!':g.moved?'Nearest open ground':ACK.move))}
+  return bad}
+function issue(p,target,opt){
+  opt=opt||{};const b=G.b,sel=selUnits();if(!sel.length||G.mode==='wait')return;if(!(target&&target.side==='E'&&G.mode==='deploy'))pushUndo(sel);
   if(target&&target.side==='E'){
     if(G.mode==='deploy'){toast({text:'Begin the battle before attacking.',kind:'event'});return}
-    for(const s of sel){setOrd(b,s,{kind:'attack',target:target.id});s.wantFace=null;ack(s,TYPES[s.type].ranged?'Open fire!':ACK.attack)}
+    for(const s of sel){setOrd(b,s,{kind:'attack',target:target.id});s.wantFace=null;const pl=tbPlan(b,s);
+      ack(s,!pl?ACK.attack:pl.noObs?'No observer!':pl.noLos?'No line of sight: moving':pl.attack?(TYPES[s.type].ranged?'Open fire!':ACK.attack):'Closing in')}
     G.pings.push({x:target.x,y:target.y,life:.8,atk:true});snd('thud');vib(12);G.lastOrderT=Date.now();return;
   }
-  const cx=sel.reduce((a,s)=>a+s.x,0)/sel.length,cy=sel.reduce((a,s)=>a+s.y,0)/sel.length;
-  for(const s of sel){
-    const x=Math.max(10,Math.min(W-10,p.x+(sel.length>1?s.x-cx:0))),y=Math.max(10,Math.min(H-10,p.y+(sel.length>1?s.y-cy:0)));
-    if(G.mode==='deploy')place(s,x,y);else{setOrd(b,s,{kind:'move',x,y,face:sel.length>1?s.facing:null});s.wantFace=null;ack(s,ACK.move)}
-  }
-  G.pings.push({x:p.x,y:p.y,life:.8});snd('thud');vib(12);for(const s2 of sel)G.pop[s2.id]=performance.now();G.lastOrderT=Date.now();
+  const bad=commitMoves(planGroupMove(sel,p,opt.face,null,null),{amove:opt.amove,grp:!!selForm(sel)});
+  G.pings.push({x:p.x,y:p.y,life:.8,bad:bad>0&&bad===sel.length});snd(bad===sel.length?'order':'thud');vib(12);for(const s2 of sel)G.pop[s2.id]=performance.now();G.lastOrderT=Date.now();
 }
+/* a drawn battle line: its midpoint, length and direction give centre, frontage and facing */
 function formationSlots(a,b2,units){
-  const dx=b2.x-a.x,dy=b2.y-a.y,len=Math.hypot(dx,dy);if(len<1)return null;
-  const ux=dx/len,uy=dy/len,face=Math.atan2(uy,ux)-Math.PI/2;
-  const us=[...units].sort((p,q)=>(p.x*ux+p.y*uy)-(q.x*ux+q.y*uy));
-  const gap=8,total=us.reduce((s,u)=>s+u.w,0)+gap*(us.length-1);
-  const extra=total<len?(len-total)/Math.max(1,us.length-1):0;
-  let cur=total<len?0:(len-total)/2;const out=[];
-  for(const u of us){const c=cur+u.w/2;out.push({u,x:a.x+ux*c,y:a.y+uy*c});cur+=u.w+gap+(us.length>1?extra:0)}
-  if(us.length===1){out[0].x=(a.x+b2.x)/2;out[0].y=(a.y+b2.y)/2}
-  return {slots:out,face};
+  const dx=b2.x-a.x,dy=b2.y-a.y,len=Math.hypot(dx,dy);if(len<6||!units.length)return null;
+  const face=Math.atan2(dy/len,dx/len)-Math.PI/2,kind=selForm(units)||'line';
+  return {slots:planGroupMove(units,{x:(a.x+b2.x)/2,y:(a.y+b2.y)/2},face,len,kind),face,kind}
 }
 function applyFormation(a,b2){
-  const sel=selUnits();if(!sel.length||G.mode==='wait')return;const f=formationSlots(a,b2,sel);if(!f)return;pushUndo(sel);
-  for(const s of f.slots){if(G.mode==='deploy')place(s.u,s.x,s.y,f.face);else{setOrd(G.b,s.u,{kind:'move',x:s.x,y:s.y,face:f.face});s.u.wantFace=null;ack(s.u,'Form line!')}}
-  G.pings.push({x:(a.x+b2.x)/2,y:(a.y+b2.y)/2,life:.8});snd('thud');vib(12);for(const s2 of sel)G.pop[s2.id]=performance.now();
+  const sel=selUnits();if(!sel.length||G.mode==='wait')return;const f=formationSlots(a,b2,sel);if(!f){issue(a,null);return}pushUndo(sel);
+  commitMoves(f.slots,{grp:true,label:'Form '+FORM[f.kind].label.toLowerCase()+'!'});
+  G.pings.push({x:(a.x+b2.x)/2,y:(a.y+b2.y)/2,life:.8});snd('thud');vib(12);for(const s2 of sel)G.pop[s2.id]=performance.now();G.lastOrderT=Date.now();
 }
+/* formation buttons: give the selection a drill and reform it where it stands (custom = keep the hand-made arrangement) */
+function setGroupForm(kind){
+  const sel=selUnits();if(!sel.length||!(G.mode==='plan'||G.mode==='deploy'))return;pushUndo(sel);
+  for(const u of sel){u.gform=kind||null;if(kind&&formsFor(u).includes(kind))setForm(u,kind,G.mode==='deploy'?null:G.b)}
+  if(kind&&sel.length>1){const cx=sel.reduce((a,s)=>a+s.x,0)/sel.length,cy=sel.reduce((a,s)=>a+s.y,0)/sel.length;commitMoves(planGroupMove(sel,{x:cx,y:cy},meanFacing(sel),null,kind),{grp:true,label:FORM[kind].label+'!'})}
+  else for(const u of sel)ack(u,kind?FORM[kind].label+'!':'Custom order');
+  visDirty(G.b);snd('order');updatePanel();updateCmds();
+}
+/* turn the selected group about its centre */
+function rotateSel(delta){
+  const sel=selUnits();if(!sel.length||!(G.mode==='plan'||G.mode==='deploy'))return;pushUndo(sel);
+  const kind=selForm(sel),base=sel.map(u=>u.order&&u.order.kind==='move'?{u,x:u.order.x,y:u.order.y,f:u.order.face!=null?u.order.face:u.facing}:{u,x:u.x,y:u.y,f:u.facing});
+  if(sel.length===1&&G.mode!=='deploy'){const u=sel[0],o=u.order&&u.order.kind==='move'?u.order:null;if(o)o.face=norm((o.face!=null?o.face:u.facing)+delta);else setOrd(G.b,u,{kind:'move',x:u.x,y:u.y,face:norm(u.facing+delta)});ack(u,'Face about');return}
+  const ox=base.reduce((a,s)=>a+s.x,0)/base.length,oy=base.reduce((a,s)=>a+s.y,0)/base.length,f0=meanFacing(base.map(s=>({facing:s.f})))+delta;
+  const moves=kind?planGroupMove(sel,{x:ox,y:oy},f0,null,kind):base.map(s=>{const c=Math.cos(delta),sn=Math.sin(delta),dx=s.x-ox,dy=s.y-oy;return{u:s.u,x:ox+dx*c-dy*sn,y:oy+dx*sn+dy*c,face:norm(s.f+delta)}});
+  commitMoves(moves,{grp:!!kind,label:'Wheel!'})}
 const CMDS={
   advance(){if(G.mode==='deploy')return;for(const u of selUnits()){const x=u.x+Math.cos(u.facing)*110,y=u.y+Math.sin(u.facing)*110;setOrd(G.b,u,{kind:'move',x:Math.max(10,Math.min(W-10,x)),y:Math.max(10,Math.min(H-10,y)),face:u.facing});ack(u,'Advance!')}snd('order')},
   charge(){const b=G.b;if(G.mode==='deploy')return toast({text:'Begin the battle first.',kind:'event'});
@@ -2975,6 +3162,7 @@ const CMDS={
       if(t){setOrd(b,u,{kind:'attack',target:t.id,charge:true});u.wantFace=null;ack(u,b.s.era==='modern'?'Assault!':'Charge!')}else ack(u,'No enemy in reach');}
     snd('horn')},
   halt(){for(const u of selUnits()){u.order=null;u.wantFace=null;ack(u,'Halt!')}snd('order')},
+  amove(){if(G.mode!=='plan')return;if(!selUnits().length){toast({text:'Select units first, then press Attack-move and click the destination.',kind:'event'});return}G.amove=!G.amove;if(G.amove)toast({text:'Attack-move: right-click (or click) the destination. Units advance and engage anything they can hit on the way.',kind:'event'});snd('order')},
   back(){if(G.mode==='deploy')return;for(const u of selUnits()){const x=u.x-Math.cos(u.facing)*90,y=u.y-Math.sin(u.facing)*90;setOrd(G.b,u,{kind:'move',x:Math.max(10,Math.min(W-10,x)),y:Math.max(10,Math.min(H-10,y)),keepFace:true,face:u.facing});ack(u,'Fall back!')}snd('order')},
   stance(){const us=selUnits().filter(u=>u.type!=='gen');if(!us.length)return;const to=us.some(u=>u.stance==='aggr')?'hold':'aggr';for(const u of us){u.stance=to;ack(u,to==='aggr'?'Engage at will!':'Hold the line!')}snd('order')},
   fire(){const us=selUnits().filter(u=>TYPES[u.type].ranged);if(!us.length)return;const to=!us.every(u=>u.fire);for(const u of us){u.fire=to;ack(u,to?'Fire at will!':'Hold fire!')}snd('order')},
@@ -3003,16 +3191,21 @@ function updateCmds(){
   set('rally',g&&!g.rout&&!dep&&!(g.rallyCd>0),false,g&&g.rallyCd>0?`${rl} (${Math.ceil(g.rallyCd/TB.ROUND)})`:rl);
   if(G.b){const w=wings();for(const k of ['L','C','R','M']){const e=document.querySelector(`[data-wing="${k}"] small`);if(e)e.textContent=w[k].length}}
   const idle=G.b&&G.mode==='plan'?G.b.units.filter(u=>u.side==='P'&&!u.gone&&!u.rout&&!u.order&&!(u.contacts&&u.contacts.length)).length:0;
-  $('dock').classList.toggle('has-sel',!!us.length&&G.mode==='plan');
+  $('dock').classList.toggle('has-sel',!!us.length&&G.mode==='plan');$('dock').classList.toggle('deploying',!!us.length&&dep);
+  set('amove',us.length&&G.mode==='plan',!!G.amove);
+  {const k=us.length?selForm(us):undefined,gf=us.length&&us.every(u=>u.gform===us[0].gform)?us[0].gform:undefined;
+   document.querySelectorAll('[data-form]').forEach(el=>{const f=el.dataset.form||null,ok=us.length&&(G.mode==='plan'||G.mode==='deploy')&&(!f||us.some(u=>formsFor(u).includes(f)));el.disabled=!ok;
+     el.classList.toggle('on',!!us.length&&(f?(gf===f||(gf===undefined&&k===f)):gf===null));if(f&&FORM[f])el.title=`${FORM[f].label}: ${FORM[f].why}`});
+   const e=$('fg-val');if(e)e.textContent=(G.formGap||1).toFixed(1)+'×'}
   $('w-undo').disabled=!(G.undo&&G.undo.length)||!(G.mode==='plan'||G.mode==='deploy');
   $('w-next').classList.toggle('pulse',idle>0);$('w-next').disabled=G.mode!=='plan'&&G.mode!=='deploy';
   $('b-exec').classList.toggle('ready',G.mode==='plan'&&idle===0);
 }
 /* undo: every order can be taken back until the turn is ended */
-function snapSel(list){return list.map(u=>({id:u.id,order:u.order?Object.assign({},u.order):null,x:u.x,y:u.y,facing:u.facing,wantFace:u.wantFace,stance:u.stance,fire:u.fire}))}
+function snapSel(list){return list.map(u=>({id:u.id,order:u.order?Object.assign({},u.order):null,x:u.x,y:u.y,facing:u.facing,wantFace:u.wantFace,stance:u.stance,fire:u.fire,form:u.form,gform:u.gform,reformT:u.reformT}))}
 function pushUndo(list){if(!list.length)return;G.undo=G.undo||[];G.undo.push(snapSel(list));if(G.undo.length>40)G.undo.shift()}
 function undo(){if(!G.b||!G.undo||!G.undo.length||!(G.mode==='plan'||G.mode==='deploy'))return;const snap=G.undo.pop();
-  for(const s of snap){const u=byId(G.b,s.id);if(!u)continue;u.order=s.order;u.wantFace=s.wantFace;u.stance=s.stance;u.fire=s.fire;if(G.mode==='deploy'){u.x=s.x;u.y=s.y;u.facing=s.facing}G.pop[u.id]=performance.now()}
+  for(const s of snap){const u=byId(G.b,s.id);if(!u)continue;u.order=s.order;u.wantFace=s.wantFace;u.stance=s.stance;u.fire=s.fire;if(s.form&&s.form!==u.form)setForm(u,s.form,null);u.gform=s.gform;u.reformT=s.reformT;if(G.mode==='deploy'){u.x=s.x;u.y=s.y;u.facing=s.facing}visDirty(G.b);G.pop[u.id]=performance.now()}
   G.floats=G.floats.filter(f=>!snap.some(s=>s.id===f.id));snd('tok');vib(8);toast({text:'Order taken back.',kind:'event'});updateRoster();updateCmds();updateTurnUI()}
 
 /* ----- roster ----- */
@@ -3037,7 +3230,7 @@ function orderText(u){
   const t=byId(G.b,o.target);if(!t)return{t:'Hold position',c:'hold'};const m=MCODES[matchCode(u.type,t.type)];
   return{t:`${o.charge?'Charge':'Attack'} ${t.name} ${m.sym}`,c:m.v>=3?'atk good':m.v<=1?'atk bad':'atk'};
 }
-function status(u){return u.gone?(u.fled?'Fled':'Destroyed'):u.rout?'Routing':u._flanked?'FLANKED':u.contacts.length?'Engaged':u.firing?(TYPES[u.type].ranged?'Firing':'Engaged'):u.underFire?'Under fire':u.moving?'Moving':u.stillT>4?'Dug in':'Holding'}
+function status(u){return u.gone?(u.fled?'Fled':'Destroyed'):u.rout?'Routing':u._flanked?'FLANKED':isPinned(u)?'Pinned down':u.contacts.length?'Engaged':u.firing?(TYPES[u.type].ranged?'Firing':'Engaged'):u.underFire?'Under fire':u.moving?'Moving':u.stillT>4?'Dug in':'Holding'}
 function updateRoster(){
   if(!G.b)return;
   document.querySelectorAll('.rcard').forEach(el=>{
@@ -3100,7 +3293,7 @@ function drawFx(c,f){
 }
 function drawOverlay(now){
   const b=G.b,c=oc,dpr=ov.width/G.cssW;c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,G.cssW,G.cssH);
-  const hidden=u=>false;
+  const hidden=hiddenFromPlayer;
   const live=b.units.filter(u=>!u.gone&&!hidden(u));
   if(G.mode==='deploy'){const y0=b.s.deploy,pts=[];for(let x=0;x<=W;x+=25)pts.push([x,y0]);for(let y=y0;y<=H;y+=25)pts.push([W,y]);for(let x=W;x>=0;x-=25)pts.push([x,H]);for(let y=H;y>=y0;y-=25)pts.push([0,y]);
     c.fillStyle='rgba(111,168,230,.13)';groundLine(c,pts,1);c.fill();c.strokeStyle='rgba(140,190,240,.85)';c.lineWidth=2;c.setLineDash([8,6]);groundLine(c,pts.slice(0,41),1);c.stroke();c.setLineDash([]);
@@ -3110,7 +3303,7 @@ function drawOverlay(now){
     const lp=P(u.x,u.y-mr,2);if(lp.vis&&G.sel.size<=3){c.font='600 11px "IBM Plex Mono",monospace';c.textAlign='center';c.lineWidth=3;c.strokeStyle='rgba(8,10,9,.85)';c.strokeText('move '+mtr(mr),lp.x,lp.y-4);c.fillStyle='#BFDBFA';c.fillText('move '+mtr(mr),lp.x,lp.y-4)}}}
   for(const id of G.sel){const u=byId(b,id);if(u&&TYPES[u.type].ranged&&!u.gone){const R=TYPES[u.type].ranged;circleOnGround(c,u.x,u.y,R.range,'rgba(214,166,58,.5)','rgba(214,166,58,.04)',[6,5]);if(R.min)circleOnGround(c,u.x,u.y,R.min,'rgba(255,107,90,.6)','rgba(255,107,90,.05)',[3,4])}}
   // who is shooting whom
-  for(const u of live){if(!u.firing||u.rout||u.firing.gone||hidden(u.firing))continue;if(u.side!=='P'&&u.firing.side!=='P')continue;
+  for(const u of live){if(!u.firing||u.rout||u.firing.gone||hidden(u.firing)||hidden(u))continue;if(u.side!=='P'&&u.firing.side!=='P')continue;
     const a=P(u.x,u.y,3),t=P(u.firing.x,u.firing.y,3);if(!a.vis||!t.vis)continue;c.strokeStyle=u.side==='P'?'rgba(111,168,230,.5)':'rgba(240,138,60,.5)';c.lineWidth=1;c.setLineDash([2,4]);c.beginPath();c.moveTo(a.x,a.y);c.lineTo(t.x,t.y);c.stroke();c.setLineDash([])}
   for(const u of live){if(u.rout)continue;let t=null;if(u.order){t=u.order.kind==='move'?u.order:byId(b,u.order.target);if(t&&t.gone)t=null}if(!t)continue;
     const s=u.side==='P',sl=G.sel.has(u.id);if(!s&&hidden(u))continue;
@@ -3134,6 +3327,11 @@ function drawOverlay(now){
   // clashes
   const seen=new Set();for(const u of live){for(const o of u.contacts){if(o.rout||u.rout)continue;const k=Math.min(u.id,o.id)+'-'+Math.max(u.id,o.id);if(seen.has(k))continue;seen.add(k);
     const p=P((u.x+o.x)/2,(u.y+o.y)/2,8);if(!p.vis)continue;const pulse=1+Math.sin(now*.012)*.15;c.fillStyle='rgba(10,12,11,.7)';c.beginPath();c.arc(p.x,p.y,9*pulse,0,7);c.fill();swords(c,p.x,p.y,4.5*pulse,'#F2D58A')}}
+  for(const u of b.units){if(u.side!=='E'||u.gone||!hidden(u))continue;const ls=b.lastSeen&&b.lastSeen[u.id];if(!ls)continue;const p=P(ls.x,ls.y,3);if(!p.vis)continue;
+    const age=Math.max(0,Math.round((b.t-ls.t)/TB.ROUND));c.save();c.globalAlpha=Math.max(.25,.75-age*.12);c.strokeStyle=ENEMY;c.lineWidth=1.4;c.setLineDash([3,3]);c.beginPath();c.arc(p.x,p.y,10,0,7);c.stroke();c.setLineDash([]);
+    c.fillStyle=ENEMY;c.font='700 12px "IBM Plex Mono",monospace';c.textAlign='center';c.textBaseline='middle';c.fillText('?',p.x,p.y+.5);c.font='600 10px "IBM Plex Mono",monospace';c.fillText(age?`seen ${age}t ago`:'last seen',p.x,p.y+18);c.textBaseline='alphabetic';c.restore()}
+  for(const u of live){if(u.side!=='P'||!u._blocked||b.t-u._blocked.t>TB.ROUND)continue;const p=P(u._blocked.x,u._blocked.y,2);if(!p.vis)continue;c.strokeStyle='#FF6B5A';c.lineWidth=2.4;c.beginPath();c.moveTo(p.x-7,p.y-7);c.lineTo(p.x+7,p.y+7);c.moveTo(p.x+7,p.y-7);c.lineTo(p.x-7,p.y+7);c.stroke();
+    c.font='600 10px "IBM Plex Mono",monospace';c.textAlign='center';c.fillStyle='#FF9A8A';c.fillText('blocked',p.x,p.y+16)}
   for(const f of b.fx)drawFx(c,f);
   for(const p of G.pings){const a=p.life/0.8,k=1-a,land=Math.max(0,1-k*2.2);const col=p.atk?'240,138,60':'214,166,58';
     circleOnGround(c,p.x,p.y,6+land*30,`rgba(${col},${Math.min(1,a*1.4)})`,`rgba(${col},${.12*a})`);if(k>.45)circleOnGround(c,p.x,p.y,8+(k-.45)*40,`rgba(${col},${a*.8})`,null)}
@@ -3141,14 +3339,18 @@ function drawOverlay(now){
     c.strokeStyle='rgba(20,20,18,.9)';c.lineWidth=2;c.beginPath();c.moveTo(b0.x,b0.y);c.lineTo(t0.x,t0.y);c.stroke();c.fillStyle=G.sel.has(u.id)?'#F3E2B0':ALLY;c.beginPath();c.moveTo(t0.x,t0.y);c.lineTo(t0.x+12,t0.y+4);c.lineTo(t0.x,t0.y+8);c.closePath();c.fill();
     c.fillStyle='rgba(0,0,0,.35)';c.beginPath();c.ellipse(b0.x,b0.y,4,2,0,0,7);c.fill()}
   const d=G.drag;
-  if(d&&d.mode==='pull'&&d.unit){const u0=d.unit,t=d.target,tx=t?t.x:d.x1,ty=t?t.y:d.y1;
-    for(const u of selUnits()){const ox=u.x-u0.x,oy=u.y-u0.y,ex=t?tx:tx+(G.sel.size>1?ox:0),ey=t?ty:ty+(G.sel.size>1?oy:0);
-      groundArrow(c,u.x,u.y,ex,ey,t?'#FF6B4A':'#6FB0FF',.95,t?11:10);
-      if(!t){const pl=tbPlan(b,Object.assign({},u,{order:{kind:'move',x:ex,y:ey}}));if(pl){const e2=pl.pts[pl.pts.length-1];circleOnGround(c,e2[0],e2[1],7,'rgba(255,255,255,.95)','rgba(111,176,255,.55)');
-        if(pl.clamped&&u===u0){const n=Math.ceil(pathLen(tbPath(b,u,ex,ey))/Math.max(1,tbMoveRange(b,u))),lp=P(ex,ey,6);if(lp.vis){c.font='700 13px "Share Tech Mono",monospace';c.textAlign='center';c.lineWidth=4;c.strokeStyle='rgba(8,8,8,.9)';c.strokeText(n+' turns',lp.x,lp.y-14);c.fillStyle='#FFE2A6';c.fillText(n+' turns',lp.x,lp.y-14)}}}}}
-    if(t){const tp=P(t.x,t.y,4);if(tp.vis){c.strokeStyle='#FF6B4A';c.lineWidth=3;c.beginPath();c.arc(tp.x,tp.y,22+Math.sin(now*.012)*3,0,7);c.stroke()}}}
+  /* order previews use the same planGroupMove/formationSlots result the order will use */
+  const previewMoves=(moves,col)=>{for(const m of moves){const u=m.u,bad=!openGround(b,u,m.x,m.y),cl=bad?'#FF6B5A':col;
+      groundArrow(c,u.x,u.y,m.x,m.y,cl,.95,10);
+      const pl=tbPlan(b,Object.assign({},u,{order:{kind:'move',x:m.x,y:m.y,grp:moves.length>1?-1:null}}));if(pl){const e2=pl.pts[pl.pts.length-1];circleOnGround(c,e2[0],e2[1],7,'rgba(255,255,255,.95)',bad||pl.noRoute?'rgba(255,107,90,.6)':'rgba(111,176,255,.55)');
+        if(pl.noRoute||bad){const lp=P(m.x,m.y,6);if(lp.vis){c.font='700 12px "Share Tech Mono",monospace';c.textAlign='center';c.lineWidth=4;c.strokeStyle='rgba(8,8,8,.9)';c.strokeText('no route',lp.x,lp.y-14);c.fillStyle='#FF9A8A';c.fillText('no route',lp.x,lp.y-14)}}
+        else if(pl.clamped&&u===(d.unit||moves[0].u)){const n=Math.ceil(pathLen(tbPath(b,u,m.x,m.y))/Math.max(1,tbPlanRange(b,u,tbPath(b,u,m.x,m.y)))),lp=P(m.x,m.y,6);if(lp.vis){c.font='700 13px "Share Tech Mono",monospace';c.textAlign='center';c.lineWidth=4;c.strokeStyle='rgba(8,8,8,.9)';c.strokeText(n+' turns',lp.x,lp.y-14);c.fillStyle='#FFE2A6';c.fillText(n+' turns',lp.x,lp.y-14)}}}
+      if(m.face!=null)ghost(c,m.x,m.y,u.w,u.d,m.face,bad?'rgba(255,107,90,.9)':'rgba(240,200,110,.9)')}};
+  if(d&&d.mode==='pull'&&d.unit){const t=d.target;
+    if(t){for(const u of selUnits())groundArrow(c,u.x,u.y,t.x,t.y,'#FF6B4A',.95,11);const tp=P(t.x,t.y,4);if(tp.vis){c.strokeStyle='#FF6B4A';c.lineWidth=3;c.beginPath();c.arc(tp.x,tp.y,22+Math.sin(now*.012)*3,0,7);c.stroke()}}
+    else previewMoves(planGroupMove(selUnits(),{x:d.x1,y:d.y1},null,null,null),G.amove?'#F5C543':'#6FB0FF')}
   if(d&&d.mode==='form'){const f=formationSlots({x:d.x0,y:d.y0},{x:d.x1,y:d.y1},selUnits());c.strokeStyle='rgba(240,200,110,.95)';c.lineWidth=2.5;groundLine(c,[[d.x0,d.y0],[d.x1,d.y1]],1.5);c.stroke();
-    if(f)for(const s of f.slots)ghost(c,s.x,s.y,s.u.w,s.u.d,f.face,'rgba(240,200,110,.95)')}
+    if(f){previewMoves(f.slots,'#F0C86E');const mp=P((d.x0+d.x1)/2,(d.y0+d.y1)/2,8);if(mp.vis){const lab=FORM[f.kind].label.toUpperCase()+' · '+f.slots.length+' UNITS';c.font='700 11px "IBM Plex Mono",monospace';c.textAlign='center';c.lineWidth=4;c.strokeStyle='rgba(8,8,8,.9)';c.strokeText(lab,mp.x,mp.y-16);c.fillStyle='#F3E2B0';c.fillText(lab,mp.x,mp.y-16)}}}
   if(d&&d.mode==='box'){const r=ov.getBoundingClientRect(),x=Math.min(d.sx,d.cx)-r.left,y=Math.min(d.sy,d.cy)-r.top;c.strokeStyle='rgba(214,166,58,.95)';c.fillStyle='rgba(214,166,58,.1)';c.lineWidth=1.2;c.setLineDash([5,4]);c.fillRect(x,y,Math.abs(d.cx-d.sx),Math.abs(d.cy-d.sy));c.strokeRect(x,y,Math.abs(d.cx-d.sx),Math.abs(d.cy-d.sy));c.setLineDash([])}
   // badges, labels, morale
   const close=G.view==='3d'?(V3.cam&&V3.cam.dist<560):G.cam.z>=1.7,br=(G.cssW>=720?11:V3.low?11:9.5)*(close?1.25:1)*(V3.low?1.12:1);
@@ -3183,7 +3385,7 @@ function drawOverlay(now){
     c.restore()}
   c.textBaseline='alphabetic';
   // enemies outside the view: pointers at the edge
-  const off=[];for(const u of b.units){if(u.side!=='E'||u.gone||u.rout)continue;const p=P(u.x,u.y,3);const inside=p.vis&&p.x>=0&&p.x<=G.cssW&&p.y>=0&&p.y<=G.cssH;if(!inside)off.push([u,p])}
+  const off=[];for(const u of b.units){if(u.side!=='E'||u.gone||u.rout||hidden(u))continue;const p=P(u.x,u.y,3);const inside=p.vis&&p.x>=0&&p.x<=G.cssW&&p.y>=0&&p.y<=G.cssH;if(!inside)off.push([u,p])}
   c.font='600 12px "Saira Condensed","Arial Narrow",sans-serif';c.textBaseline='middle';
   for(const [u,p] of off.slice(0,8)){
     let x=p.x,y=p.y;if(!p.vis){const q=P(u.x,u.y,3);x=G.cssW-q.x;y=G.cssH-8}
@@ -3194,7 +3396,7 @@ function drawOverlay(now){
     c.fillStyle='rgba(10,14,12,.86)';c.fillRect(lx,ly-9,tw+8,18);c.strokeStyle=ENEMY;c.lineWidth=1;c.strokeRect(lx,ly-9,tw+8,18);c.fillStyle='#FFE7D3';c.textAlign='left';c.fillText(txt,lx+4,ly+1);
   }
   c.textBaseline='alphabetic';
-  const ne=b.units.filter(u=>u.side==='E'&&!u.gone&&!u.rout).length;$('vis-tag').textContent=`All ${ne} enemy units visible`+(off.length?` · ${off.length} outside view`:'');
+  const ne=b.units.filter(u=>u.side==='E'&&!u.gone&&!u.rout),ns=ne.filter(u=>!hidden(u)).length;$('vis-tag').textContent=`${ns} of ${ne.length} enemy units in sight`+(off.length?` · ${off.length} outside view`:'');
 }
 function casualties(b,side){return b.units.filter(u=>u.side===side).reduce((a,u)=>a+Math.max(0,u.maxMen-u.men),0)}
 function updateCounter(dt){
@@ -3218,6 +3420,8 @@ function unitCard(u,enemy){
   if(R)extra.push(`<span>Weapon</span><b>${({arrow:'Bows',musket:'Smoothbore muskets',cannon:'Field guns, round shot and canister',rifle:'Rifles and machine guns',autocannon:'30 mm autocannon',tankgun:'120 mm main gun',atgm:'Guided anti-tank missiles',shell:'155 mm howitzers',missile:'Attack drones',hellfire:'Anti-tank missiles',sam:'Surface-to-air missiles',kamikaze:'Loitering munitions'})[R.w]||R.w}</b>`);
   if(R)extra.push(`<span>Range</span><b>${mtr(R.range)}${R.min?` (min ${mtr(R.min)})`:''}</b>`);
   extra.push(`<span>Strength</span><b>${strength(u)} of ${T0(u)}</b>`);
+  if(formsFor(u).length>1){const F=formOf(u);extra.push(`<span>Formation</span><b title="${F.why}">${F.label}${u.reformT!=null&&u.reformT===b.t?' · reforming':''}</b>`)}
+  if((u.supp||0)>=5){const s=Math.round(u.supp),sc=s>PINNED?C.red:s>40?C.brass:'#9AA39C';extra.push(`<span>Suppression</span><b style="color:${sc}">${s>PINNED?'PINNED · ':''}${s}% <i class="sbar"><i style="width:${s}%;background:${sc}"></i></i></b>`)}
   if(!enemy&&u.type!=='gen')extra.push(`<span>Orders</span><b>${u.stance==='aggr'?'Engage at will':'Hold the line'}${R?(u.fire?' · fire at will':' · hold fire'):''}</b>`);
   if(u.inspired)extra.push(`<span>Command</span><b style="color:${C.brass}">Inspired by the commander</b>`);
   if(u.type==='gen')extra.push(`<span>${b.s.era==='modern'?'Steady':'Rally'}</span><b>${u.rallyCd>0?'Ready in '+Math.ceil(u.rallyCd/TB.ROUND)+' turn(s)':'Ready'}</b>`);
@@ -3271,7 +3475,10 @@ function scanFlanks(){
 const keysDown=new Set();
 function loop(now){
   const dt=Math.min(0.1,(now-G.last)/1000);G.last=now;const b=G.b;
-  if(b&&G.mode!=='menu'){let px=0,py=0;if(keysDown.has('ArrowLeft'))px++;if(keysDown.has('ArrowRight'))px--;if(keysDown.has('ArrowUp'))py++;if(keysDown.has('ArrowDown'))py--;if(px||py)panBy(px*500*dt,py*500*dt)}
+  if(b&&G.mode!=='menu'){let px=0,py=0;if(keysDown.has('ArrowLeft'))px++;if(keysDown.has('ArrowRight'))px--;if(keysDown.has('ArrowUp'))py++;if(keysDown.has('ArrowDown'))py--;
+    /* edge scrolling with the mouse (not while dragging, and only once the pointer has rested near the edge) */
+    const m=G.mouse,E=14;if(m&&!G.drag&&!G.pan&&!G.orbit&&now-m.t<4000&&G.edgeScroll!==false){if(m.x<E)px+=1;else if(m.x>G.cssW-E)px-=1;if(m.y<E)py+=1;else if(m.y>G.cssH-E)py-=1}
+    if(px||py)panBy(px*500*dt,py*500*dt)}
   if(b&&G.mode==='exec'){
     const sp=dt*G.speed*(G.ff?3:1)*(G.tscale||1);G.tscale=Math.min(1,(G.tscale||1)+dt*1.6);tbTick(b,sp);
     const fdt=sp*1.6;for(const f of b.fx){if(f.delay>0)f.delay-=fdt;else f.life-=fdt;
@@ -3318,7 +3525,7 @@ function showTip(u,e){
 function unitAtScreen(cx,cy,prefer){
   const r=ov.getBoundingClientRect(),X=cx-r.left,Y=cy-r.top;let best=null,bd=1e9;
   if(prefer){let pb=null,pd=1e9;for(const u of G.b.units){if(u.gone||u.side!==prefer||u.rout)continue;for(const [x,y,rad] of [[u._bx,u._by,20],[u._sx,u._sy,Math.max(22,(u._sr||12)+12)]]){if(x==null)continue;const d=Math.hypot(X-x,Y-y);if(d<rad&&d<pd){pd=d;pb=u}}}if(pb)return pb}
-  for(const u of G.b.units){if(u.gone)continue;
+  for(const u of G.b.units){if(u.gone||hiddenFromPlayer(u))continue;
     if(u._bx!=null){const d=Math.hypot(X-u._bx,Y-u._by);if(d<12&&d<bd){bd=d;best=u;continue}}
     if(u._sx==null)continue;const d=Math.hypot(X-u._sx,Y-u._sy),rad=Math.max(12,u._sr||12);if(d<rad&&d/rad*20<bd){bd=d/rad*20;best=u}}
   return best;
@@ -3326,7 +3533,7 @@ function unitAtScreen(cx,cy,prefer){
 /* pick the unit closest to the finger, own or enemy, so a tap near an enemy never grabs your own unit by accident */
 function pickUnit(cx,cy,touch,only){
   const r=ov.getBoundingClientRect(),X=cx-r.left,Y=cy-r.top;let best=null,bs=1e9;
-  for(const u of G.b.units){if(u.gone||(only&&u.side!==only))continue;if(u.rout&&u.side==='P')continue;if(u.side==='E'&&typeof hidden==='function'&&hidden(u))continue;
+  for(const u of G.b.units){if(u.gone||(only&&u.side!==only))continue;if(u.rout&&u.side==='P')continue;if(hiddenFromPlayer(u))continue;
     for(const [x,y,rad] of [[u._bx,u._by,touch?20:15],[u._sx,u._sy,Math.max(touch?18:16,(u._sr||12)+(touch?4:2))]]){if(x==null)continue;const d=Math.hypot(X-x,Y-y);if(d<rad&&d/rad<bs){bs=d/rad;best=u}}}
   return best;
 }
@@ -3339,6 +3546,7 @@ ov.addEventListener('pointerdown',e=>{
   if(!G.b||G.mode==='over')return;sndInit();if(SND.ctx&&SND.ctx.state==='suspended')SND.ctx.resume();ov.focus({preventScroll:true});
   G.ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});ov.setPointerCapture(e.pointerId);
   if(G.ptrs.size===2){const [a,b2]=[...G.ptrs.values()];G.drag=null;G.pinch={d:Math.hypot(a.x-b2.x,a.y-b2.y),cx:(a.x+b2.x)/2,cy:(a.y+b2.y)/2};return}
+  if(e.button===1&&e.shiftKey&&G.view==='3d'){G.orbit={x:e.clientX,y:e.clientY};return}
   if(e.button===1||(e.button===0&&(G.space||e.altKey))){G.pan={x:e.clientX,y:e.clientY};if(G.space)G.spaceUsed=true;return}
   const isMac=/Mac/.test(navigator.platform||''),btn=(e.button===0&&e.ctrlKey&&isMac)?2:e.button;
   const u=pickUnit(e.clientX,e.clientY,e.pointerType!=='mouse'),p=vToWorld(e);
@@ -3349,6 +3557,8 @@ ov.addEventListener('pointermove',e=>{
   if(G.ptrs.has(e.pointerId))G.ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(G.pinch&&G.ptrs.size===2){const [a,b2]=[...G.ptrs.values()],d=Math.hypot(a.x-b2.x,a.y-b2.y),cx=(a.x+b2.x)/2,cy=(a.y+b2.y)/2,r=ov.getBoundingClientRect();
     zoomBy(d/G.pinch.d,cx-r.left,cy-r.top);panBy(cx-G.pinch.cx,cy-G.pinch.cy);G.pinch={d,cx,cy};return}
+  if(e.pointerType==='mouse'){const r=ov.getBoundingClientRect();G.mouse={x:e.clientX-r.left,y:e.clientY-r.top,t:performance.now()}}
+  if(G.orbit){const c=V3.cam;c.yawT+=(e.clientX-G.orbit.x)*.006;c.yaw=c.yawT;c.tilt=Math.max(-.35,Math.min(.45,(c.tilt||0)-(e.clientY-G.orbit.y)*.004));G.orbit={x:e.clientX,y:e.clientY};return}
   if(G.pan){panBy(e.clientX-G.pan.x,e.clientY-G.pan.y);G.pan={x:e.clientX,y:e.clientY};return}
   const d=G.drag;
   if(d){d.cx=e.clientX;d.cy=e.clientY;const p=vToWorld(e);if(p){d.x1=p.x;d.y1=p.y}
@@ -3369,6 +3579,7 @@ function nextIdle(){
 function endPointer(e){
   G.ptrs.delete(e.pointerId);
   if(G.pinch){if(G.ptrs.size<2)G.pinch=null;G.drag=null;return}
+  if(G.orbit){G.orbit=null;return}
   if(G.pan){G.pan=null;return}
   const d=G.drag;G.drag=null;if(!d||!G.b||e.type==='pointercancel')return;
   ov.style.cursor='default';
@@ -3380,22 +3591,28 @@ function endPointer(e){
   if(d.mode==='box'){const r=ov.getBoundingClientRect(),x0=Math.min(d.sx,d.cx)-r.left,x1=Math.max(d.sx,d.cx)-r.left,y0=Math.min(d.sy,d.cy)-r.top,y1=Math.max(d.sy,d.cy)-r.top;
     selectOnly(G.b.units.filter(u=>u.side==='P'&&!u.gone&&!u.rout&&u._sx!=null&&u._sx>=x0&&u._sx<=x1&&u._sy>=y0&&u._sy<=y1).map(u=>u.id),d.shift);return}
   const u=d.unit,p=d.w0,canOrder=G.mode==='plan'||G.mode==='deploy';
-  // right click: order (power users)
-  if(d.btn===2){if(!G.sel.size){toast({text:'Tap one of your units first, or drag from it to where it should go.',kind:'event'});return}if(p||u)issue(u&&u.side==='E'?u:p,u&&u.side==='E'?u:null);return}
-  if(Date.now()-(G.lastOrderT||0)<350)return;
-  // tap own unit: select / toggle
-  if(u&&u.side==='P'&&!u.rout){
-    if(d.shift){if(G.sel.has(u.id)){G.sel.delete(u.id);updatePanel();updateRoster();updateCmds()}else selectOnly([u.id],true);return}
-    if(G.sel.size===1&&G.sel.has(u.id)){G.sel.clear();updatePanel();updateRoster();updateCmds();snd('tok');return}
-    selectOnly([u.id]);return}
-  // tap the enemy or the ground with units selected: that is the order
   const tgt=u&&u.side==='E'&&!u.gone&&!u.rout?u:null;
-  if(G.sel.size&&canOrder){if(tgt){if(G.mode==='deploy'){G.inspect=tgt.id;updatePanel();return}issue(tgt,tgt)}else if(p)issue(p,null);releaseSel();return}
+  // right click: the order (attack an enemy, otherwise move; attack-move when armed or with Ctrl)
+  if(d.btn===2){if(!G.sel.size){toast({text:'Select one of your units first (left click), then right-click where it should go.',kind:'event'});return}
+    if(tgt)issue(tgt,tgt);else if(p)issue(p,null,{amove:G.amove||e.ctrlKey||e.metaKey});G.amove=false;updateCmds();return}
+  if(Date.now()-(G.lastOrderT||0)<350)return;
+  // left click own unit: select / toggle; double-click: every unit of that type in view
+  if(u&&u.side==='P'&&!u.rout){
+    const dbl=G.lastClick&&G.lastClick.id===u.id&&performance.now()-G.lastClick.t<340;G.lastClick={id:u.id,t:performance.now()};
+    if(dbl){const r=ov.getBoundingClientRect(),same=G.b.units.filter(o=>o.side==='P'&&!o.gone&&!o.rout&&o.type===u.type&&o._sx!=null&&o._sx>=0&&o._sx<=r.width&&o._sy>=0&&o._sy<=r.height).map(o=>o.id);selectOnly(same,d.shift);toast({text:`${same.length} ${TYPES[u.type].label.toLowerCase()} selected`,kind:'event'});return}
+    if(d.shift){if(G.sel.has(u.id)){G.sel.delete(u.id);updatePanel();updateRoster();updateCmds()}else selectOnly([u.id],true);return}
+    if(d.touch&&G.sel.size===1&&G.sel.has(u.id)){G.sel.clear();updatePanel();updateRoster();updateCmds();snd('tok');return}
+    selectOnly([u.id]);return}
+  // attack-move armed: the next click on the ground is the destination
+  if(G.amove&&G.sel.size&&canOrder&&p&&!tgt){issue(p,null,{amove:true});G.amove=false;updateCmds();return}
+  // touch: tap the enemy or the ground with units selected and that is the order (no right button on a phone)
+  if(d.touch&&G.sel.size&&canOrder){if(tgt){if(G.mode==='deploy'){G.inspect=tgt.id;updatePanel();return}issue(tgt,tgt)}else if(p)issue(p,null);releaseSel();return}
+  // mouse: left click inspects an enemy, or clears the selection on empty ground (never an accidental order)
   if(tgt){G.inspect=tgt.id;updatePanel();return}
-  if(!d.shift){G.sel.clear();G.inspect=null;updatePanel();updateRoster();updateCmds()}
+  if(!d.shift){G.sel.clear();G.inspect=null;G.amove=false;updatePanel();updateRoster();updateCmds()}
 }
 ov.addEventListener('pointerup',endPointer);ov.addEventListener('pointercancel',endPointer);
-ov.addEventListener('pointerleave',()=>{G.hover=null;$('mtip').hidden=true});
+ov.addEventListener('pointerleave',()=>{G.hover=null;G.mouse=null;$('mtip').hidden=true});
 
 document.addEventListener('keydown',e=>{
   if(!G.b||G.mode==='menu'||e.target.closest('input,textarea'))return;
@@ -3403,8 +3620,15 @@ document.addEventListener('keydown',e=>{
   if(e.code==='Space'){e.preventDefault();if(!e.repeat){G.space=true;G.spaceUsed=false}return}
   if(e.key==='Enter'){e.preventDefault();if(G.mode==='deploy')begin();else if(G.mode==='plan')execTurn();return}
   const k=e.key.toLowerCase();
+  if(e.shiftKey&&/^Digit[0-5]$/.test(e.code)){e.preventDefault();const n=+e.code.slice(5);setGroupForm(n?FORM_KEYS[n-1]:null);return}
+  if(e.key==='['||e.key===']'){e.preventDefault();setFormGap(G.formGap*(e.key===']'?1.25:0.8));return}
+  if(e.key==='<'||e.key==='>'){e.preventDefault();rotateSel((e.key==='>'?1:-1)*Math.PI/8);return}
+  if(e.key==='PageUp'||e.key==='PageDown'){e.preventDefault();if(G.view==='3d')V3.cam.tilt=Math.max(-.35,Math.min(.45,(V3.cam.tilt||0)+(e.key==='PageUp'?.08:-.08)));return}
+  if(e.key==='Home'){e.preventDefault();fitView();return}
+  if(k==='j'){e.preventDefault();CMDS.amove();updateCmds();return}
+  if(k==='l'){e.preventDefault();focusSel();return}
   if(k==='z'){e.preventDefault();undo();return}
-  if(k==='escape'){G.sel.clear();G.inspect=null;updatePanel();updateRoster();updateCmds()}
+  if(k==='escape'){G.sel.clear();G.inspect=null;G.amove=false;updatePanel();updateRoster();updateCmds()}
   else if(k==='a'){e.preventDefault();selectOnly(G.b.units.filter(u=>u.side==='P'&&!u.gone&&!u.rout).map(u=>u.id))}
   else if(/^[1-9]$/.test(k)){const el=document.querySelectorAll('.rcard')[+k-1];if(el)el.click()}
   else if(k==='q')pickWing('L');else if(k==='w')pickWing('C');else if(k==='e')pickWing('R');else if(k==='x')pickWing('M');
@@ -3425,7 +3649,7 @@ function togglePause(){
 }
 function introTags(){const b=G.b;for(const [side,i,col] of [['P',0,'#6FA8E6'],['E',1,'#F08A3C']]){const all=b.units.filter(u=>u.side===side&&!u.gone),us=all.filter(u=>u.type!=='gen').length?all.filter(u=>u.type!=='gen'):all;if(!us.length)continue;const cx=us.reduce((a,u)=>a+u.x,0)/us.length,cy=us.reduce((a,u)=>a+u.y,0)/us.length;let best=us[0],bd=1e9;for(const u of us){const d=Math.hypot(u.x-cx,u.y-cy);if(d<bd){bd=d;best=u}}
   const men=all.reduce((a,u)=>a+u.men,0);tagUnit(best,`${b.s.sides[i]}: ${b.s.era==='modern'?all.length+' units':fmt(men)+' men'}`,col,5)}}
-function begin(){introTags();sndInit();if(SND.ctx&&SND.ctx.state==='suspended')SND.ctx.resume();$('ov-deploy').hidden=true;G.turn=1;G.mode='plan';tbContacts(G.b);if(!G.net)tbEnemyPlan(G.b);G.report=null;updateTurnUI();updateCmds();snd('horn');toast({text:`Drag from a unit to where it should go, or onto an enemy to attack. Amber dots mark units without orders. Then End turn.`,kind:'event'})}
+function begin(){introTags();sndInit();if(SND.ctx&&SND.ctx.state==='suspended')SND.ctx.resume();$('ov-deploy').hidden=true;G.turn=1;G.mode='plan';tbContacts(G.b);visDirty(G.b);if(!G.net)tbEnemyPlan(G.b);G.report=null;updateTurnUI();updateCmds();snd('horn');toast({text:`Drag from a unit to where it should go, or onto an enemy to attack. Amber dots mark units without orders. Then End turn.`,kind:'event'})}
 function snapUnits(){const m={};for(const u of G.b.units)m[u.id]={men:u.men,morale:u.morale,rout:u.rout,gone:u.gone,order:u.order?Object.assign({},u.order):null,tgt:u.order&&u.order.kind==='attack'?u.order.target:null};return m}
 function execTurn(){
   if(G.net&&!G.netGo&&G.mode==='plan'){netSubmit();return}
@@ -3445,7 +3669,7 @@ function tagUnit(u,text,dot,life){G.hits=G.hits.filter(h=>!(h.id===u.id&&h.tag))
 function caption(text,hi){const el=$('caption');const safe=t=>t.replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
   el.innerHTML=safe(text).split(' ').map(w=>hi&&w.replace(/[^A-Za-z'’,]/g,'').toUpperCase()===hi.toUpperCase()?`<em>${w}</em>`:w).join(' ');
   el.hidden=true;void el.offsetWidth;el.hidden=false;clearTimeout(el._t);el._t=setTimeout(()=>el.hidden=true,1700)}
-function hitFloats(list){if(!list)return 0;let n=0;for(const r of list){if(r.lost<.5&&r.dm>-3)continue;n++;
+function hitFloats(list){if(!list)return 0;let n=0;for(const r of list){if(r.lost<.5&&r.dm>-3)continue;if(hiddenFromPlayer(r.u)&&!r.u.rout&&!r.u.gone)continue;n++;
   const stack=G.hits.filter(h=>h.id===r.u.id&&h.life>1.2&&!h.tag).length;G.hits.push({stack,id:r.u.id,x:r.u.x,y:r.u.y,text:(r.lost>=.5?'−'+lossTxt(r.u,r.lost).trim():'')+(r.dm<=-3?(r.lost>=.5?' · ':'')+r.dm+'%':''),side:r.u.side,life:1.9,rout:r.u.rout||r.u.gone});
     if((r.u.rout||r.u.gone)&&!r.u._routSeen){r.u._routSeen=1;onRout(r.u)}}
   return n}
@@ -3551,7 +3775,9 @@ $('p-restart').onclick=()=>$('b-restart').click();$('p-speed').onclick=()=>{$('b
 document.querySelectorAll('[data-wing]').forEach(el=>el.addEventListener('click',()=>pickWing(el.dataset.wing)));
 $('w-next').onclick=()=>nextIdle();
 $('w-all').onclick=()=>{if(G.b)selectOnly(G.b.units.filter(u=>u.side==='P'&&!u.gone&&!u.rout).map(u=>u.id))};
-$('z-in').onclick=()=>zoomBy(1.35,G.cssW/2,G.cssH/2);$('z-out').onclick=()=>zoomBy(1/1.35,G.cssW/2,G.cssH/2);$('z-fit').onclick=fitView;
+$('z-in').onclick=()=>zoomBy(1.35,G.cssW/2,G.cssH/2);$('z-out').onclick=()=>zoomBy(1/1.35,G.cssW/2,G.cssH/2);$('z-fit').onclick=fitView;$('z-sel').onclick=focusSel;
+document.querySelectorAll('[data-form]').forEach(el=>el.addEventListener('click',()=>{setGroupForm(el.dataset.form||null);updateCmds();updateRoster();updateTurnUI()}));
+$('fg-dn').onclick=()=>{setFormGap((G.formGap||1)-.2);updateCmds()};$('fg-up').onclick=()=>{setFormGap((G.formGap||1)+.2);updateCmds()};
 $('r-l').onclick=()=>{V3.cam.yawT-=Math.PI/8};$('r-r').onclick=()=>{V3.cam.yawT+=Math.PI/8};
 $('v-toggle').onclick=()=>setView(G.view==='3d'?'2d':'3d');
 $('m-toggle').onclick=()=>setMini(!miniOn());
@@ -4014,8 +4240,8 @@ function netStart(role,era,seed,conn){
 }
 const netMap=id=>id<=G.net.n?id+G.net.n:id-G.net.n;
 function netMir(o){if(!o)return null;if(o.kind==='move')return Object.assign({},o,{x:1000-o.x,y:640-o.y,face:o.face!=null?o.face+Math.PI:o.face});if(o.kind==='attack')return Object.assign({},o,{target:netMap(o.target)});return Object.assign({},o)}
-function netMine(){return G.b.units.filter(u=>u.side==='P').map(u=>({id:u.id,order:u.order?Object.assign({},u.order):null,stance:u.stance,fire:u.fire,wantFace:u.wantFace}))}
-function netApply(list){for(const o of list){const u=byId(G.b,netMap(o.id));if(!u||u.gone)continue;u.order=netMir(o.order);u.stance=o.stance;u.fire=o.fire;u.wantFace=o.wantFace!=null?o.wantFace+Math.PI:null}}
+function netMine(){return G.b.units.filter(u=>u.side==='P').map(u=>({id:u.id,order:u.order?Object.assign({},u.order):null,stance:u.stance,fire:u.fire,wantFace:u.wantFace,form:u.form,reformT:u.reformT}))}
+function netApply(list){for(const o of list){const u=byId(G.b,netMap(o.id));if(!u||u.gone)continue;u.order=netMir(o.order);u.stance=o.stance;u.fire=o.fire;if(o.form&&o.form!==u.form){setForm(u,o.form,null);u.reformT=o.reformT}u.wantFace=o.wantFace!=null?o.wantFace+Math.PI:null}}
 function netRallyFoe(){const g=G.b.units.find(u=>u.side==='E'&&u.type==='gen'&&!u.gone);if(g){g.rallyCd=0;rally(G.b,g);G.b.msgs.length=0}}
 function netSubmit(){
   const N=G.net;if(N.dead){toast({text:'Your opponent has left. Start a new online battle from the menu.',kind:'bad'});return}
@@ -4035,7 +4261,7 @@ function netMaybeGo(){
   N.conn.send({t:'go',host:N.mine});N.mine=null;N.theirs=null;netGo();
 }
 function netGo(){G.mode='plan';G.netGo=true;execTurn();G.netGo=false}
-function netSnap(){const b=G.b;return{t:b.t,units:b.units.map(u=>({id:u.id,x:u.x,y:u.y,facing:u.facing,men:u.men,morale:u.morale,rout:u.rout,gone:u.gone,fled:u.fled,fatigue:u.fatigue||0,dugIn:u.dugIn,stillT:u.stillT,rallyCd:u.rallyCd,dd:u.dd,killed:u.killed,order:u.order?Object.assign({},u.order):null}))}}
+function netSnap(){const b=G.b;return{t:b.t,units:b.units.map(u=>({id:u.id,x:u.x,y:u.y,facing:u.facing,men:u.men,morale:u.morale,rout:u.rout,gone:u.gone,fled:u.fled,fatigue:u.fatigue||0,dugIn:u.dugIn,form:u.form,supp:u.supp||0,stillT:u.stillT,rallyCd:u.rallyCd,dd:u.dd,killed:u.killed,order:u.order?Object.assign({},u.order):null}))}}
 function netRoundDone(){
   const N=G.net,b=G.b;
   if(N.role==='host'){try{N.conn.send({t:'state',snap:netSnap(),result:b.result})}catch(e){}if(b.result)showEnd();else endTurn()}
@@ -4045,8 +4271,9 @@ function netApplyState(){
   const N=G.net,b=G.b,m=N.state;N.state=null;N.waitState=false;
   b.t=m.snap.t;
   for(const s of m.snap.units){const u=byId(b,netMap(s.id));if(!u)continue;
+    if(s.form&&s.form!==u.form)setForm(u,s.form,null);u.supp=s.supp||0;
     Object.assign(u,{x:1000-s.x,y:640-s.y,facing:s.facing+Math.PI,men:s.men,morale:s.morale,rout:s.rout,gone:s.gone,fled:s.fled,fatigue:s.fatigue,dugIn:s.dugIn,stillT:s.stillT,rallyCd:s.rallyCd,dd:s.dd,killed:s.killed});u.order=netMir(s.order)}
-  tbContacts(b);
+  tbContacts(b);visDirty(b);
   if(m.result)b.result={win:!m.result.win,reason:m.result.win?'Your army has broken. Your opponent holds the field.':'The enemy army has broken. The field is yours.'};
   G.mode='exec';
   if(b.result)showEnd();else endTurn();
