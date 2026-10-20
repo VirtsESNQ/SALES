@@ -76,22 +76,22 @@ export const WEAPONS = {
   macro: {
     name: 'Macro cannon turret', short: 'MAC', role: 'capitals', desc: 'Triple-barrel gothic turret. Heavy shells at 15 km.',
     kind: 'bolt', range: 15000, reload: 7, speed: 3000, dmg: 135, splash: 34, spread: 0.0013,
-    traverse: 9, tol: 1.4, arc: { axis: 'up', half: 100 }, barrels: 3, ammo: null, color: 0xffa860, group: false,
+    traverse: 9, tol: 1.4, arc: { axis: 'up', half: 100 }, barrels: 3, ammo: null, color: 0xffa860, group: true,
   },
   gundeck: {
     name: 'Broadside gun deck', short: 'GDK', role: 'capitals', desc: '12 ports per flank. Ripple-fires down the gun deck.',
     kind: 'bolt', range: 12000, reload: 10, speed: 2800, dmg: 190, splash: 30, spread: 0.0016,
-    traverse: 14, tol: 1.8, arc: { axis: 'side', half: 42 }, barrels: 1, ammo: null, color: 0xff9a50, group: false,
+    traverse: 14, tol: 1.8, arc: { axis: 'side', half: 42 }, barrels: 1, ammo: null, color: 0xff9a50, group: true,
   },
   siege: {
     name: 'Siege cannon', short: 'SGE', role: 'capitals', desc: 'Prow beam. Glows orange for 3 s before it fires.',
     kind: 'beam', range: 16000, reload: 30, speed: 0, charge: 3, beamDur: 1.8, dps: 2400, splash: 90, shieldMul: 1.2, hullMul: 1.2, sysMul: 1.8,
-    traverse: 0, tol: 6, arc: { axis: 'fwd', half: 6 }, barrels: 1, ammo: null, color: 0xff7a2a, group: false, spinal: true,
+    traverse: 0, tol: 6, arc: { axis: 'fwd', half: 6 }, barrels: 1, ammo: null, color: 0xff7a2a, group: true, spinal: true,
   },
   ram: {
     name: 'Talon ram cannon', short: 'RAM', role: 'capitals', desc: 'Forked-prow cannon of the Kesh cruiser. Short, brutal, bow only.',
     kind: 'shell', range: 8000, reload: 12, speed: 1600, dmg: 520, splash: 120, shieldMul: 1.3, sysMul: 1.4, spread: 0.0009,
-    traverse: 0, tol: 8, arc: { axis: 'fwd', half: 8 }, barrels: 1, ammo: null, color: 0xff8040, group: false,
+    traverse: 0, tol: 8, arc: { axis: 'fwd', half: 8 }, barrels: 1, ammo: null, color: 0xff8040, group: true,
   },
 
   /* ---- small-craft weapons ---- */
@@ -102,7 +102,7 @@ export const WEAPONS = {
 };
 
 /** Order of tiles in the player's weapon grid. */
-export const GRID_ORDER = ['heavy', 'broadside', 'secondary', 'plasma', 'lance', 'ion', 'massdriver', 'vls', 'torpedo', 'mine'];
+export const GRID_ORDER = ['heavy', 'macro', 'broadside', 'gundeck', 'secondary', 'plasma', 'lance', 'siege', 'ram', 'ion', 'massdriver', 'vls', 'torpedo', 'mine'];
 /** The 12 catalogue weapons, as shown on the arsenal sheet. */
 export const CATALOGUE = ['heavy', 'secondary', 'broadside', 'plasma', 'lance', 'vls', 'pd', 'ion', 'massdriver', 'torpedo', 'flak', 'mine'];
 

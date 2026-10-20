@@ -214,3 +214,64 @@ export class Controls {
     this.badge.innerHTML = `<b>${MODES[this.game.mode].label}</b><span>${steering ? 'MOUSE STEERS THE SHIP' : cam.looking ? 'LOOKING AROUND' : this.game.mode === 'nav' ? 'DRAG TO LOOK' : 'MOUSE AIMS · EDGE TO LOOK'}</span>`;
   }
 }
+
+const DOCTRINES = [['concentrate', 'CONCENTRATE', 'All other batteries fire on the locked target'], ['split', 'SPLIT', 'Batteries spread over every enemy in reach'], ['threats', 'THREATS', 'Batteries fire on whoever is shooting at you'], ['hold', 'HOLD', 'Other batteries hold fire']];
+
+/** Weapon grid: one tile per battery with count, reload, ammo and ready state. Click selects, FIRE fires. */
+export class WeaponGrid {
+  constructor(game, ui) {
+    this.game = game;
+    this.root = h('div', 'card wgrid');
+    ui.appendChild(this.root);
+    this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.built = null;
+    bus.on('key', ({ code }) => {
+      const m = /^Digit(\d)$/.exec(code || '');
+      if (!m) return;
+      const groups = this.game.weapons.groupsOf(this.game.player);
+      const g = groups[Number(m[1]) - 1];
+      if (g) this.select(g.type);
+    });
+    bus.on('key', ({ action }) => { if (action === 'fireSecondary') this.game.weapons.firePlayerGroup('vls') || this.game.weapons.firePlayerGroup('torpedo'); });
+  }
+  select(type) {
+    if (this.game.weapons.selected !== type) { this.game.weapons.selected = type; audio.switch(); bus.emit('weapon:select', { type }); }
+  }
+  build() {
+    const groups = this.game.weapons.groupsOf(this.game.player);
+    this.root.innerHTML = `
+      <div class="wg-h"><span class="ctl-h">Batteries</span><span class="wg-hint">Hold right mouse: scope</span></div>
+      <div class="wg-tiles">${groups.map((g) => `
+        <div class="wt" data-t="${g.type}" title="${g.def.desc}">
+          <div class="wt-top"><b>${g.def.short}</b><em class="wt-n"></em></div>
+          <div class="wt-name">${g.def.name}</div>
+          <div class="wt-state"></div>
+          <div class="wt-bar"><i></i></div>
+          <button class="wt-fire">FIRE</button>
+        </div>`).join('')}</div>
+      <div class="ctl-h" style="margin-top:8px">Other batteries</div>
+      <div class="doct">${DOCTRINES.map(([k, l, d]) => `<button data-d="${k}" title="${d}">${l}</button>`).join('')}</div>`;
+    for (const el of this.root.querySelectorAll('.wt')) {
+      tactile(el, 'click').addEventListener('click', (e) => { if (!e.target.classList.contains('wt-fire')) this.select(el.dataset.t); });
+      const f = el.querySelector('.wt-fire');
+      tactile(f, 'press').addEventListener('click', () => { this.select(el.dataset.t); this.game.weapons.firePlayerGroup(el.dataset.t); });
+    }
+    for (const b of this.root.querySelectorAll('[data-d]')) tactile(b, 'switch').addEventListener('click', () => { this.game.weapons.doctrine = b.dataset.d; });
+    this.built = this.game.player;
+  }
+  render() {
+    if (!this.game.player) return;
+    if (this.built !== this.game.player) this.build();
+    const W = this.game.weapons;
+    for (const el of this.root.querySelectorAll('.wt')) {
+      const st = W.groupState[el.dataset.t];
+      if (!st) continue;
+      el.classList.toggle('sel', el.dataset.t === W.selected);
+      el.dataset.state = st.state;
+      el.querySelector('.wt-n').textContent = `×${st.alive}/${st.total}${st.ammo != null ? ` · ${st.ammo}` : ''}`;
+      el.querySelector('.wt-state').textContent = st.state === 'ready' ? 'READY' : st.state === 'reload' ? `RELOAD ${st.reload.toFixed(1)}s` : st.state === 'traversing' ? 'TRAVERSING' : st.state === 'arc' ? 'OUT OF ARC' : st.state === 'range' ? 'OUT OF RANGE' : st.state === 'nolock' ? 'NEEDS LOCK' : st.state === 'empty' ? 'EMPTY' : st.state === 'firing' ? 'FIRING' : 'DESTROYED';
+      el.querySelector('.wt-bar i').style.width = `${(st.readyFrac || 0) * 100}%`;
+    }
+    for (const b of this.root.querySelectorAll('[data-d]')) b.classList.toggle('on', b.dataset.d === W.doctrine);
+  }
+}

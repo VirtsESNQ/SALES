@@ -67,9 +67,14 @@ export class Input {
     this.enabled = true;
 
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Browsers report a bogus jump on the first move after pointer lock engages or releases.
+    this.skipMove = false;
+    document.addEventListener('pointerlockchange', () => { this.skipMove = true; });
     window.addEventListener('pointermove', (e) => {
       const m = this.mouse;
-      m.dx += e.movementX || 0; m.dy += e.movementY || 0;
+      const mx = e.movementX || 0, my = e.movementY || 0;
+      if (this.skipMove) this.skipMove = false;
+      else if (Math.abs(mx) < 400 && Math.abs(my) < 400) { m.dx += mx; m.dy += my; }
       m.x = e.clientX; m.y = e.clientY;
       m.nx = (e.clientX / innerWidth) * 2 - 1;
       m.ny = -(e.clientY / innerHeight) * 2 + 1;

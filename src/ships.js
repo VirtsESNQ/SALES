@@ -8,6 +8,39 @@ import { instantiateShip, turretMatrices } from './models.js';
 const approach = (v, t, d) => (v < t ? Math.min(v + d, t) : Math.max(v - d, t));
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q1 = new THREE.Quaternion(), _e = new THREE.Euler();
 const _b = new THREE.Matrix4(), _p = new THREE.Matrix4();
+const RC0 = new THREE.Vector3(), RC1 = new THREE.Vector3(), RCD = new THREE.Vector3(), _u0 = new THREE.Vector3(), _ud = new THREE.Vector3();
+
+/** Segment (origin + t*d, t in 0..1) vs axis-aligned box. Returns entry t or -1. */
+function segAABB(o, d, min, max) {
+  let tmin = 0, tmax = 1;
+  for (const k of ['x', 'y', 'z']) {
+    if (Math.abs(d[k]) < 1e-9) { if (o[k] < min[k] || o[k] > max[k]) return -1; continue; }
+    let t1 = (min[k] - o[k]) / d[k], t2 = (max[k] - o[k]) / d[k];
+    if (t1 > t2) { const x = t1; t1 = t2; t2 = x; }
+    if (t1 > tmin) tmin = t1;
+    if (t2 < tmax) tmax = t2;
+    if (tmin > tmax) return -1;
+  }
+  return tmin;
+}
+/** Segment vs unit sphere (already in unit space). Entry t or -1; starts inside never register. */
+function segUnitSphere(p0, d) {
+  const a = d.dot(d), b = 2 * p0.dot(d), c = p0.dot(p0) - 1;
+  if (c < 0) return -1;
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return -1;
+  const t = (-b - Math.sqrt(disc)) / (2 * a);
+  return t >= 0 && t <= 1 ? t : -1;
+}
+export function segPointDistSq(a, b, p) {
+  const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
+  const l = abx * abx + aby * aby + abz * abz;
+  let t = l > 0 ? ((p.x - a.x) * abx + (p.y - a.y) * aby + (p.z - a.z) * abz) / l : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const x = a.x + abx * t - p.x, y = a.y + aby * t - p.y, z = a.z + abz * t - p.z;
+  return x * x + y * y + z * z;
+}
+export const SECTORS = ['FORE', 'AFT', 'PORT', 'STBD'];
 export const AX_Y = new THREE.Vector3(0, 1, 0);
 
 /** Throttle detents: Full Reverse / Stop / 25 / 50 / 75 / 100 (Boost is a separate switch). */
@@ -49,6 +82,13 @@ export class Ship {
     this.hull = this.C.hull; this.maxHull = this.C.hull;
     this.maxShield = this.C.shield;
     this.shields = [this.C.shield, this.C.shield, this.C.shield, this.C.shield]; // fore, aft, port, stbd
+    this.shieldC = this.design.shield.center; this.shieldR = this.design.shield.radii;
+    this.hitBoxes = this.design.hitBoxes.map(([a, b]) => ({ min: a, max: b }));
+    this.shieldBoost = -1;            // sector index receiving extra power, -1 = balanced
+    this.shieldDelay = [0, 0, 0, 0];  // seconds until a sector starts recharging
+    this.target = null; this.targetSub = 'hull';
+    this.stats = { shots: 0, hits: 0, dealt: 0, taken: 0, kills: 0 };
+    this.magazine = { vls: this.C.missileMagazine || (this.C.loadout.vls ? this.C.loadout.vls * 4 : 0) };
     this.subs = {};
     for (const [k, s] of Object.entries(this.C.subsystems)) this.subs[k] = { hp: s.hp, max: s.hp, offline: 0, pos: this.design.subsystems[k]?.clone() || new THREE.Vector3() };
 
@@ -57,6 +97,8 @@ export class Ship {
     this.mounts = this.design.mounts.map((m, i) => ({
       i, m, type: m.type, alive: true, hp: 1,
       yaw: 0, pitch: 0.04, recoil: 0,
+      cd: Math.random() * 2, salvo: 0, salvoT: 0, barrel: 0, charge: 0, beam: 0,
+      aligned: false, inArc: false, hasAim: false, err: 99, aimPoint: new THREE.Vector3(), target: null, retarget: 0,
       h: turrets ? turrets.alloc(m.type, this.faction) : null,
     }));
   }
@@ -71,6 +113,64 @@ export class Ship {
   toLocal(world, out = new THREE.Vector3()) { return out.copy(world).applyMatrix4(this.inv); }
   heading() { const f = this.fwd(_v1); return Math.atan2(f.x, f.z); }
   speed() { return this.vel.dot(this.fwd(_v2)); }
+  center(out = new THREE.Vector3()) { return this.toWorld(this.shieldC, out); }
+  sectorOfLocal(p) {
+    const a = Math.atan2(p.x - this.shieldC.x, p.z - this.shieldC.z), aa = Math.abs(a);
+    return aa < Math.PI / 4 ? 0 : aa > 3 * Math.PI / 4 ? 1 : a > 0 ? 2 : 3;
+  }
+  shieldsUp() { return this.shields.some((x) => x > 0); }
+  /** Segment test in world space: { t, local, point, shield, sector } or null. */
+  raycast(p0, p1, ignoreShield = false) {
+    if (!this.alive) return null;
+    if (segPointDistSq(p0, p1, this.root.position) > (this.radius + 80) ** 2) return null;
+    const l0 = RC0.copy(p0).applyMatrix4(this.inv), l1 = RC1.copy(p1).applyMatrix4(this.inv);
+    const d = RCD.subVectors(l1, l0);
+    if (!ignoreShield && this.shieldsUp()) {
+      _u0.copy(l0).sub(this.shieldC).divide(this.shieldR); _ud.copy(d).divide(this.shieldR);
+      const t = segUnitSphere(_u0, _ud);
+      if (t >= 0) {
+        const lp = new THREE.Vector3().copy(l0).addScaledVector(d, t), sec = this.sectorOfLocal(lp);
+        if (this.shields[sec] > 0) return { t, local: lp, point: this.toWorld(lp), shield: true, sector: sec };
+      }
+    }
+    let best = 2;
+    for (const b of this.hitBoxes) { const t = segAABB(l0, d, b.min, b.max); if (t >= 0 && t < best) best = t; }
+    if (best > 1) return null;
+    const lp = new THREE.Vector3().copy(l0).addScaledVector(d, best);
+    return { t: best, local: lp, point: this.toWorld(lp), shield: false, sector: this.sectorOfLocal(lp) };
+  }
+  /** Distance from a world point to the nearest hull box. */
+  surfaceDist(world) {
+    const l = this.toLocal(world, _v2);
+    let best = Infinity;
+    for (const b of this.hitBoxes) {
+      const dx = Math.max(b.min.x - l.x, 0, l.x - b.max.x), dy = Math.max(b.min.y - l.y, 0, l.y - b.max.y), dz = Math.max(b.min.z - l.z, 0, l.z - b.max.z);
+      best = Math.min(best, Math.hypot(dx, dy, dz));
+    }
+    return best;
+  }
+  /** Ship-local aim point for a subsystem choice ('hull' | 'engines' | 'weapons' | 'shieldgen' | 'hangar' | ...). */
+  aimLocal(sub, out = new THREE.Vector3()) {
+    if (sub === 'weapons') {
+      const t = this.mounts.find((m) => m.alive && ['heavy', 'macro', 'broadside', 'gundeck', 'plasma'].includes(m.type));
+      return out.copy(t ? t.m.pos : this.shieldC);
+    }
+    if (sub && sub !== 'hull' && this.subs[sub]) return out.copy(this.subs[sub].pos);
+    return out.copy(this.shieldC).setY(0);
+  }
+  subList() { return ['hull', 'weapons', ...Object.keys(this.subs).filter((k) => k !== 'bridge')]; }
+  /** Weapon power: reactor damage slows traverse and reloads. */
+  powerFactor() {
+    const r = this.subs.reactor;
+    if (!r) return 1;
+    return r.offline > 0 ? 0.4 : 0.5 + 0.5 * (r.hp / r.max);
+  }
+  /** Sensor quality: damaged sensors widen the gun spread and shrink radar range. */
+  sensorFactor() {
+    const s = this.subs.sensors;
+    if (!s) return 1;
+    return s.offline > 0 ? 0.25 : 0.4 + 0.6 * (s.hp / s.max);
+  }
   /** 0..1 engine effectiveness (damage system overrides via subsystem state). */
   engineFactor() {
     const e = this.subs.engines;

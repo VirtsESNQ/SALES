@@ -5,7 +5,8 @@ import { Engine, bus, TEST, QUERY, settings } from './core.js';
 import { Environment } from './environment.js';
 import { startShowcase } from './showcase.js';
 import { Game } from './game.js';
-import { Controls } from './controls.js';
+import { Controls, WeaponGrid } from './controls.js';
+import { HUD } from './hud.js';
 import { showMenu } from './menu.js';
 import { PLAYABLE } from './mission.js';
 
@@ -51,8 +52,10 @@ function boot() {
     const controls = new Controls(game, ui);
     game.addSystem(controls);
     game.controls = controls;
+    game.hud = new HUD(game, ui);
+    game.grid = new WeaponGrid(game, ui);
     game.start(choice);
-    engine.add({ update: (dt) => game.update(dt), render: (dt) => { game.render(dt); controls.render(dt); } });
+    engine.add({ update: (dt) => game.update(dt), render: (dt) => { game.render(dt); controls.render(dt); game.hud.render(dt); game.grid.render(dt); } });
   };
   const side = QUERY.get('side'), ship = QUERY.get('ship');
   if (side && PLAYABLE[side]?.some((p) => p.cls === ship)) begin({ side, ship });

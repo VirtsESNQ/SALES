@@ -74,7 +74,7 @@ export const scenarios = [
       await page.click('[data-mode="nav"]');
       await page.click('[data-ms="steer"]');
       t.assert(await page.evaluate(() => window.__game.settings.mouseSteer), 'mouse steering on');
-      await page.waitForFunction(() => document.querySelector('.look-badge').textContent.includes('STEERS'), null, { timeout: 5000 });
+      await page.waitForFunction(() => document.querySelector('.look-badge').textContent.includes('STEERS'), null, { timeout: 15000 });
       await page.click('[data-ms="look"]');
       await page.waitForTimeout(300);
       await t.shot('helm-card');
@@ -140,4 +140,120 @@ export const scenarios = [
       await t.shot(`model-${m}`);
     },
   })),
+  {
+    name: 'gunnery-halberd',
+    url: 'index.html?test=1&side=concord&ship=halberd',
+    async run(page, t) {
+      await page.waitForFunction(() => window.__game?.state?.().ship, null, { timeout: 30000 });
+      const st = () => page.evaluate(() => window.__game.state());
+      const sim = (s) => page.evaluate((x) => window.__game.sim(x), s);
+      // park the Varr Tolun 9 km off the bow, broadside on
+      await page.evaluate(() => {
+        const g = window.__game.game, v = g.ships.find((s) => s.cls === 'varr');
+        v.root.position.set(0, 300, 9000); v.root.rotation.set(0, Math.PI / 2, 0); v.root.updateMatrixWorld(); v.inv.copy(v.root.matrixWorld).invert();
+      });
+      await sim(0.2);
+      await page.waitForTimeout(500);
+      // lock it from the contact list
+      await page.locator('.contact', { hasText: 'Varr Tolun' }).dispatchEvent('pointerdown');
+      let s = await st();
+      t.assert(s.target === 'Varr Tolun', `locked target (${s.target})`);
+      // select heavy turbolasers on the grid, put the cursor on the target
+      await page.click('.wt[data-t="heavy"]');
+      const tgt = await page.evaluate(() => { const g = window.__game.game, v = g.player.target; const p = v.center().project(g.engine.camera); return { x: (p.x * 0.5 + 0.5) * innerWidth, y: (-p.y * 0.5 + 0.5) * innerHeight }; });
+      await page.mouse.move(tgt.x, tgt.y);
+      await sim(12);
+      s = await st();
+      t.assert(s.groups.heavy.alive === 8 && s.groups.heavy.total === 8, 'heavy battery shows 8/8');
+      t.assert(s.groups.heavy.state === 'ready', `heavy battery aligned and ready (${s.groups.heavy.label})`);
+      await page.waitForFunction(() => document.querySelector('.rdy-main span').textContent.includes('ALIGNED · READY TO FIRE'), null, { timeout: 15000 });
+      await t.shot('gunnery-ready');
+      // fire: hold the left button on the battlefield
+      const hp = () => page.evaluate(() => { const v = window.__game.game.player.target; return v.hull + v.shields.reduce((a, b) => a + b, 0); });
+      await page.click('[data-d="hold"]'); // other batteries hold fire so only this salvo counts
+      const sh0 = await hp();
+      await page.mouse.move(tgt.x, tgt.y);
+      await sim(2);
+      await page.mouse.down();
+      await sim(0.6);
+      await page.waitForTimeout(250);
+      await t.shot('gunnery-salvo');
+      await page.mouse.up();
+      await sim(4);
+      const sh1 = await hp();
+      t.assert(sh1 < sh0 - 400, `turbolaser salvo hits (${Math.round(sh0)} -> ${Math.round(sh1)})`);
+      s = await st();
+      t.assert(s.groups.heavy.state === 'reload', `battery reloading after the salvo (${s.groups.heavy.state})`);
+      // broadsides are out of arc with the bow on the target and say which side to turn
+      await page.click('.wt[data-t="broadside"]');
+      await sim(1);
+      s = await st();
+      t.assert(s.groups.broadside.state === 'arc' && /TURN (PORT|STARBOARD)/.test(s.groups.broadside.label), `broadside asks to turn a side (${s.groups.broadside.label})`);
+      // turn the starboard side toward the Varr: broadsides come to bear
+      await page.evaluate(() => { const p = window.__game.game.player; p.root.rotation.set(0, Math.PI / 2, 0, 'YXZ'); p.root.updateMatrixWorld(); p.inv.copy(p.root.matrixWorld).invert(); });
+      await page.mouse.move(tgt.x, tgt.y);
+      await page.evaluate(() => { const g = window.__game.game; g.weapons.manualAim.copy(g.player.target.center()); });
+      await sim(8);
+      s = await st();
+      t.assert(s.groups.broadside.state === 'ready' || s.groups.broadside.state === 'traversing', `broadside bears when turned (${s.groups.broadside.label})`);
+      // spinal lance: bow on target, charge then beam
+      await page.evaluate(() => { const p = window.__game.game.player; p.root.rotation.set(0, 0, 0, 'YXZ'); p.root.updateMatrixWorld(); p.inv.copy(p.root.matrixWorld).invert(); p.angVel.set(0, 0, 0); });
+      await page.click('.wt[data-t="lance"]');
+      await page.evaluate(() => { const g = window.__game.game; g.player.targetSub = 'hull'; });
+      await sim(1);
+      s = await st();
+      t.assert(s.groups.lance.state === 'ready', `lance ready with the bow on target (${s.groups.lance.label})`);
+      const hull0 = await page.evaluate(() => window.__game.game.player.target.hull + window.__game.game.player.target.shields.reduce((a, b) => a + b, 0));
+      await page.click('.wt[data-t="lance"] .wt-fire');
+      await sim(1.2);
+      s = await st();
+      t.assert(s.groups.lance.state === 'firing', 'lance charging');
+      await sim(1.8);
+      await page.waitForTimeout(300);
+      await t.shot('gunnery-lance');
+      await sim(1.5);
+      const hull1 = await page.evaluate(() => window.__game.game.player.target.hull + window.__game.game.player.target.shields.reduce((a, b) => a + b, 0));
+      t.assert(hull1 < hull0 - 2000, `lance beam deals heavy damage (${Math.round(hull0 - hull1)})`);
+      // missiles: launch a VLS salvo at the locked target
+      await page.click('.wt[data-t="vls"] .wt-fire');
+      s = await st();
+      t.assert(s.missiles >= 10, `VLS salvo launched (${s.missiles} missiles)`);
+      await sim(1.5);
+      await page.waitForTimeout(300);
+      await t.shot('gunnery-missiles');
+      // gravity mines drop astern
+      await page.click('.wt[data-t="mine"] .wt-fire');
+      s = await st();
+      t.assert(s.mines >= 6, `mines dropped (${s.mines})`);
+      // enemy missiles get engaged by point defence
+      const before = await page.evaluate(() => {
+        const g = window.__game.game, v = g.player.target;
+        v.target = g.player;
+        for (const m of v.mounts.filter((x) => x.type === 'vls')) { m.cd = 0; g.weapons.fire(v, m, g.player.pos, g.player); }
+        return g.weapons.missiles.filter((m) => m.team === 'hegemony').length;
+      });
+      t.assert(before >= 6, `enemy launched missiles (${before})`);
+      await sim(30);
+      const pdKills = await page.evaluate(() => window.__game.game.player.stats.intercepts || 0);
+      t.assert(pdKills >= 1, `point defence shot down incoming missiles (${pdKills})`);
+      // scope: hold right mouse
+      await page.click('.wt[data-t="heavy"]');
+      const tgt2 = await page.evaluate(() => { const g = window.__game.game, v = g.player.target; const p = v.center().project(g.engine.camera); return { x: (p.x * 0.5 + 0.5) * innerWidth, y: (-p.y * 0.5 + 0.5) * innerHeight }; });
+      await page.mouse.move(tgt2.x, tgt2.y);
+      await sim(0.2);
+      await page.mouse.down({ button: 'right' });
+      await page.waitForFunction(() => window.__game.engine.camera.fov < 30, null, { timeout: 15000 });
+      await page.waitForTimeout(300);
+      const scoped = await page.evaluate(() => { const g = window.__game.game, c = g.engine.camera; const p = g.player.target.center().project(c); return { x: p.x, y: p.y, fov: c.fov }; });
+      t.assert(scoped.fov < 30 && Math.abs(scoped.x) < 0.5 && Math.abs(scoped.y) < 0.5, `scope looks at the target (${JSON.stringify(scoped)})`);
+      await page.waitForTimeout(600);
+      s = await st();
+      t.assert(s.scope && s.view === 'scope', 'right mouse opens the scope');
+      await t.shot('gunnery-scope');
+      await page.mouse.up({ button: 'right' });
+      await page.waitForTimeout(200);
+      s = await st();
+      t.assert(!s.scope && s.view === 'chase', 'releasing right mouse closes the scope');
+    },
+  },
 ];

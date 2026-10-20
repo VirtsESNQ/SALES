@@ -6,6 +6,8 @@ import { Ship } from './ships.js';
 import { CameraRig } from './camera.js';
 import { spawnFleets } from './mission.js';
 import { audio } from './audio.js';
+import { FX } from './fx.js';
+import { Weapons } from './weapons.js';
 
 export const MODES = {
   nav: { label: 'NAVIGATION', sens: 1 },
@@ -25,7 +27,15 @@ export class Game {
     this.scopeActive = false;
     this.choice = null;
     this.systems = [];   // extra systems registered by later modules: { update(dt), render?(dt) }
+    this.fighters = [];  // small craft (filled by the fighter system)
+    this.fx = new FX(this.scene);
+    this.weapons = new Weapons(this);
     this.camera = new CameraRig(engine, this);
+    // fire: hold the left button on the battlefield (combat / precision mode, or in the scope)
+    bus.on('pointerdown', ({ button }) => {
+      if (button === 0 && this.player?.alive && (this.mode !== 'nav' || this.scopeActive)) this.weapons.trigger = true;
+    });
+    bus.on('pointerup', ({ button }) => { if (button === 0) this.weapons.trigger = false; });
   }
   spawnShip(cls, opts) {
     const s = new Ship(cls, { ...opts, scene: this.scene, turrets: this.turrets });
@@ -51,6 +61,8 @@ export class Game {
   update(dt) {
     for (const s of this.systems) s.preUpdate?.(dt);
     for (const s of this.ships) s.update(dt);
+    this.weapons.update(dt);
+    this.fx.update(dt);
     for (const s of this.systems) s.update?.(dt);
     const p = this.player;
     audio.update(dt, p ? p.throttle : 0, p ? p.boosting : false);
@@ -60,6 +72,9 @@ export class Game {
     this.env.update(dt, this.engine.camera);
     for (const s of this.ships) s.poseTurrets();
     this.turrets.flush();
+    this.fx.streaks.begin();
+    this.weapons.render(dt);
+    this.fx.render(dt);
     for (const s of this.systems) s.render?.(dt);
   }
   /** Snapshot for tests and the HUD. */
@@ -70,6 +85,9 @@ export class Game {
       speed: p.speed(), detent: p.detent, throttle: p.throttle, heading: p.heading(), boostHeat: p.boostHeat, boosting: p.boosting,
       pos: p.pos.toArray(), yawRate: p.angVel.y, ctl: { ...p.ctl, steer: !!p.ctl.steer, hold: !!p.ctl.hold },
       ships: this.ships.length,
+      target: p.target?.name || null, targetSub: p.targetSub, selected: this.weapons.selected, doctrine: this.weapons.doctrine,
+      groups: this.weapons.groupState, scope: this.scopeActive, hull: p.hull, shields: [...p.shields], stats: { ...p.stats },
+      projectiles: this.weapons.list.length, missiles: this.weapons.missiles.length, mines: this.weapons.mines.length,
     } : null;
   }
 }
