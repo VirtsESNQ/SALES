@@ -8,6 +8,7 @@ import { spawnFleets } from './mission.js';
 import { audio } from './audio.js';
 import { FX } from './fx.js';
 import { Weapons } from './weapons.js';
+import { DamageSystem } from './damage.js';
 
 export const MODES = {
   nav: { label: 'NAVIGATION', sens: 1 },
@@ -30,6 +31,7 @@ export class Game {
     this.fighters = [];  // small craft (filled by the fighter system)
     this.fx = new FX(this.scene);
     this.weapons = new Weapons(this);
+    this.damage = new DamageSystem(this);
     this.camera = new CameraRig(engine, this);
     // fire: hold the left button on the battlefield (combat / precision mode, or in the scope)
     bus.on('pointerdown', ({ button }) => {
@@ -62,6 +64,7 @@ export class Game {
     for (const s of this.systems) s.preUpdate?.(dt);
     for (const s of this.ships) s.update(dt);
     this.weapons.update(dt);
+    this.damage.update(dt);
     this.fx.update(dt);
     for (const s of this.systems) s.update?.(dt);
     const p = this.player;
@@ -74,6 +77,7 @@ export class Game {
     this.turrets.flush();
     this.fx.streaks.begin();
     this.weapons.render(dt);
+    this.damage.render(dt);
     this.fx.render(dt);
     for (const s of this.systems) s.render?.(dt);
   }
@@ -86,7 +90,7 @@ export class Game {
       pos: p.pos.toArray(), yawRate: p.angVel.y, ctl: { ...p.ctl, steer: !!p.ctl.steer, hold: !!p.ctl.hold },
       ships: this.ships.length,
       target: p.target?.name || null, targetSub: p.targetSub, selected: this.weapons.selected, doctrine: this.weapons.doctrine,
-      groups: this.weapons.groupState, scope: this.scopeActive, hull: p.hull, shields: [...p.shields], stats: { ...p.stats },
+      groups: this.weapons.groupState, scope: this.scopeActive, hull: p.hull, maxHull: p.maxHull, alive: p.alive, shields: [...p.shields], shieldBoost: p.shieldBoost, fires: p.fires?.length || 0, subs: Object.fromEntries(Object.entries(p.subs).map(([k, v]) => [k, { hp: v.hp / v.max, offline: v.offline }])), stats: { ...p.stats },
       projectiles: this.weapons.list.length, missiles: this.weapons.missiles.length, mines: this.weapons.mines.length,
     } : null;
   }

@@ -6,8 +6,8 @@ import { Environment } from './environment.js';
 import { startShowcase } from './showcase.js';
 import { Game } from './game.js';
 import { Controls, WeaponGrid } from './controls.js';
-import { HUD } from './hud.js';
-import { showMenu } from './menu.js';
+import { HUD, ShipStatus, Comms } from './hud.js';
+import { showMenu, PauseMenu } from './menu.js';
 import { PLAYABLE } from './mission.js';
 
 const status = document.getElementById('boot-status');
@@ -54,8 +54,12 @@ function boot() {
     game.controls = controls;
     game.hud = new HUD(game, ui);
     game.grid = new WeaponGrid(game, ui);
+    game.status = new ShipStatus(game, ui);
+    game.comms = new Comms(game, ui);
+    game.pause = new PauseMenu(game, ui);
     game.start(choice);
-    engine.add({ update: (dt) => game.update(dt), render: (dt) => { game.render(dt); controls.render(dt); game.hud.render(dt); game.grid.render(dt); } });
+    const uiParts = [controls, game.hud, game.grid, game.status, game.comms];
+    engine.add({ update: (dt) => game.update(dt), render: (dt) => { game.render(dt); for (const u of uiParts) u.render(dt); } });
   };
   const side = QUERY.get('side'), ship = QUERY.get('ship');
   if (side && PLAYABLE[side]?.some((p) => p.cls === ship)) begin({ side, ship });

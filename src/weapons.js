@@ -407,8 +407,10 @@ export class Weapons {
         if (f && allowFire && doctrine !== 'hold' && this.ready(t) && this.arcOK(ship, t, f.pos)) this.fire(ship, t, f.pos, null);
         continue;
       }
+      // the player's free batteries only engage on their own under SPLIT or THREATS
+      if (ship.isPlayer && (doctrine === 'hold' || (doctrine === 'concentrate' && !(ship.target && ship.target.alive)))) { this.idle(ship, t, dt); continue; }
       t.retarget = (t.retarget || 0) - dt;
-      if (t.retarget <= 0 || !t.target || !t.target.alive) { t.target = doctrine === 'hold' && !ship.target ? null : this.pickTarget(ship, t, doctrine === 'hold' ? 'concentrate' : doctrine); t.retarget = rand(0.5, 1.0); }
+      if (t.retarget <= 0 || !t.target || !t.target.alive) { t.target = this.pickTarget(ship, t, doctrine === 'hold' ? 'concentrate' : doctrine); t.retarget = rand(0.5, 1.0); }
       const tg = t.target;
       if (!tg || !tg.alive) { this.idle(ship, t, dt); continue; }
       const aim = this.aimAt(ship, t, tg, _v4);

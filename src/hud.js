@@ -180,3 +180,137 @@ export class HUD {
     }
   }
 }
+
+const SUB_EFFECT = { engines: 'speed and turning', shieldgen: 'shield recharge', sensors: 'accuracy and radar', reactor: 'reload and traverse', hangar: 'fighter launches', bridge: 'command', siege: 'siege cannon' };
+
+/** Own-ship status: clickable 4-sector shield diagram (boost), hull, fires, subsystems. */
+export class ShipStatus {
+  constructor(game, ui) {
+    this.game = game;
+    this.root = h('div', 'card status');
+    this.root.innerHTML = `
+      <div class="st-h"><b class="st-name"></b><small class="st-cls"></small></div>
+      <div class="st-row">
+        <svg class="st-sh" viewBox="-60 -70 120 140">
+          <path class="st-ship" d=""/>
+          <path class="sec" data-s="0" d="M-36 -56 A70 70 0 0 1 36 -56"/>
+          <path class="sec" data-s="1" d="M36 56 A70 70 0 0 1 -36 56"/>
+          <path class="sec" data-s="2" d="M-48 -42 A70 70 0 0 0 -48 42"/>
+          <path class="sec" data-s="3" d="M48 42 A70 70 0 0 0 48 -42"/>
+          <circle class="hitflash" r="0"/>
+        </svg>
+        <div class="st-side">
+          <div class="st-shv"></div>
+          <button class="btn st-bal" title="Spread shield power evenly">BALANCE</button>
+          <div class="st-hull"><small>HULL</small><i><em></em></i><b></b></div>
+          <div class="st-fire"></div>
+        </div>
+      </div>
+      <div class="st-subs"></div>
+      <div class="st-hint">Click a shield sector to send it more power.</div>`;
+    ui.appendChild(this.root);
+    this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
+    for (const el of this.root.querySelectorAll('.sec')) {
+      el.addEventListener('pointerdown', () => { audio.switch(); this.game.damage.boostSector(this.game.player, Number(el.dataset.s)); });
+    }
+    tactile(this.root.querySelector('.st-bal'), 'switch').addEventListener('click', () => { const p = this.game.player; if (p) p.shieldBoost = -1; });
+    bus.on('key', ({ action }) => {
+      const map = { shieldFore: 0, shieldAft: 1, shieldPort: 2, shieldStbd: 3 };
+      if (action in map && this.game.player) { audio.switch(); this.game.damage.boostSector(this.game.player, map[action]); }
+    });
+    this.flash = [0, 0, 0, 0];
+    bus.on('hit:shield', ({ ship, h: hit }) => { if (ship.isPlayer) this.flash[hit.sector] = 1; });
+    bus.on('hit:hull', ({ ship, h: hit }) => { if (ship.isPlayer) this.flash[hit.sector] = 1.5; });
+    this.built = null;
+  }
+  build(p) {
+    // simple top-down silhouette of the player's class
+    const wedge = p.faction === 'concord';
+    this.root.querySelector('.st-ship').setAttribute('d', wedge ? 'M0 -46 L20 34 L-20 34 Z' : 'M0 -46 L12 -26 L12 38 L-12 38 L-12 -26 Z');
+    this.root.querySelector('.st-name').textContent = p.name;
+    this.root.querySelector('.st-cls').textContent = p.C.cname;
+    this.built = p;
+  }
+  render(dt) {
+    const p = this.game.player; if (!p) return;
+    if (this.built !== p) this.build(p);
+    const R = this.root;
+    for (const el of R.querySelectorAll('.sec')) {
+      const i = Number(el.dataset.s), k = p.shields[i] / p.maxShield;
+      el.style.opacity = 0.25 + Math.min(1, k) * 0.75;
+      el.classList.toggle('down', k <= 0);
+      el.classList.toggle('low', k > 0 && k < 0.3);
+      el.classList.toggle('boost', p.shieldBoost === i);
+      el.classList.toggle('hit', this.flash[i] > 0);
+      this.flash[i] = Math.max(0, this.flash[i] - dt * 3);
+    }
+    R.querySelector('.st-shv').innerHTML = SECTORS.map((s, i) => `<span class="${p.shields[i] <= 0 ? 'crit' : p.shields[i] < p.maxShield * 0.3 ? 'warn' : ''} ${p.shieldBoost === i ? 'b' : ''}"><small>${s}</small>${Math.round(p.shields[i] / p.maxShield * 100)}</span>`).join('');
+    R.querySelector('.st-bal').classList.toggle('on', p.shieldBoost < 0);
+    const hk = Math.max(0, p.hull / p.maxHull);
+    const he = R.querySelector('.st-hull em');
+    he.style.width = `${hk * 100}%`; he.className = hk < 0.3 ? 'crit' : hk < 0.6 ? 'warn' : '';
+    R.querySelector('.st-hull b').textContent = `${Math.round(hk * 100)}%`;
+    const fires = p.fires?.length || 0;
+    R.querySelector('.st-fire').innerHTML = fires ? `<span class="crit">FIRE ×${fires} · damage control responding</span>` : '';
+    R.querySelector('.st-subs').innerHTML = Object.entries(p.subs).filter(([k]) => k !== 'bridge').map(([k, s]) => {
+      const st = s.offline > 0 ? ['crit', `OFFLINE ${Math.ceil(s.offline)}s`] : s.hp <= 0 ? ['crit', `DESTROYED · repair ${Math.max(0, Math.ceil((p.isPlayer ? 24 : 32) - (s.repairT || 0)))}s`] : s.hp < s.max * 0.5 ? ['warn', 'DAMAGED'] : ['ok', 'OK'];
+      return `<div class="${st[0]}" title="Affects ${SUB_EFFECT[k] || k}"><span>${(SUB_NAMES[k] || k).replace('SHIELDS', 'SHIELD GEN')}</span><i><em style="width:${Math.max(0, s.hp / s.max) * 100}%"></em></i><b>${st[1]}</b></div>`;
+    }).join('');
+  }
+}
+
+/** Short radio callouts and a running combat log (most recent first, fades out). */
+export class Comms {
+  constructor(game, ui) {
+    this.game = game;
+    this.root = h('div', 'comms');
+    ui.appendChild(this.root);
+    this.lines = [];
+    const P = () => game.player;
+    const name = (s) => s.isPlayer ? 'we' : s.name;
+    bus.on('radio', ({ from, text, level }) => this.say(from, text, level));
+    bus.on('shield:down', ({ ship, name: sec }) => {
+      if (ship.isPlayer) { this.say('SHIELDS', `${sec.toLowerCase()} shield down. Turn a fresh sector to the enemy or boost it.`, 'crit'); audio.alarm('crit'); }
+      else if (P()?.target === ship) this.say('TACTICAL', `${ship.name}: ${sec.toLowerCase()} shield down.`, 'ok');
+    });
+    bus.on('subsystem', ({ ship, key, state }) => {
+      const L = (SUB_NAMES[key] || key).toLowerCase();
+      if (ship.isPlayer) {
+        if (state === 'destroyed') { this.say('DAMAGE CONTROL', `${L} offline. Effect: ${SUB_EFFECT[key] || key} reduced. Crews dispatched.`, 'crit'); audio.alarm('crit'); }
+        else if (state === 'damaged') this.say('DAMAGE CONTROL', `${L} damaged.`, 'warn');
+        else if (state === 'restored') this.say('DAMAGE CONTROL', `${L} back online.`, 'ok');
+      } else if (state === 'destroyed' && ship.team !== P()?.team) this.say('TACTICAL', `${ship.name}: ${L} disabled.`, 'ok');
+    });
+    bus.on('critical', ({ ship, kind, key }) => {
+      if (!ship.isPlayer) return;
+      if (kind === 'fire') { this.say('DAMAGE CONTROL', `Fire reported, deck ${3 + Math.floor(Math.random() * 38)}. Teams responding.`, 'warn'); audio.alarm('warn'); }
+      else this.say('DAMAGE CONTROL', `Critical hit, ${(SUB_NAMES[key] || key).toLowerCase()}.`, 'crit');
+    });
+    bus.on('mount:lost', ({ ship, mount }) => {
+      if (ship.isPlayer) this.say('GUNNERY', `${WEAPONS[mount.type].name} mount destroyed.`, 'warn');
+    });
+    bus.on('ship:destroyed', ({ ship, src }) => {
+      const mine = src && (src.isPlayer || src.carrier?.isPlayer);
+      if (ship.isPlayer) this.say('BRIDGE', 'Abandon ship. All hands, abandon ship.', 'crit');
+      else this.say('TACTICAL', `${ship.name} destroyed${mine ? ' — confirmed kill' : ''}.`, ship.team === P()?.team ? 'crit' : 'ok');
+    });
+    bus.on('target', ({ ship }) => this.say('TACTICAL', `Target locked: ${ship.name}, ${ship.C.label.toLowerCase()}.`, 'info'));
+    bus.on('overheat', ({ ship }) => { if (ship.isPlayer) this.say('ENGINEERING', 'Drives overheated. Boost locked out until they cool.', 'warn'); });
+    void name;
+  }
+  say(from, text, level = 'info') {
+    const el = h('div', `cm ${level}`, `<b>${from}</b>${text}`);
+    this.root.prepend(el);
+    this.lines.unshift({ el, t: 9 });
+    if (level !== 'info') audio.radio();
+    while (this.lines.length > 5) this.lines.pop().el.remove();
+  }
+  render(dt) {
+    for (let i = this.lines.length - 1; i >= 0; i--) {
+      const l = this.lines[i];
+      l.t -= dt;
+      if (l.t < 1.5) l.el.style.opacity = Math.max(0, l.t / 1.5);
+      if (l.t <= 0) { l.el.remove(); this.lines.splice(i, 1); }
+    }
+  }
+}

@@ -256,4 +256,81 @@ export const scenarios = [
       t.assert(!s.scope && s.view === 'chase', 'releasing right mouse closes the scope');
     },
   },
+  {
+    name: 'damage-model',
+    url: 'index.html?test=1&side=concord&ship=halberd',
+    async run(page, t) {
+      await page.waitForFunction(() => window.__game?.state?.().ship, null, { timeout: 30000 });
+      const st = () => page.evaluate(() => window.__game.state());
+      const sim = (s) => page.evaluate((x) => window.__game.sim(x), s);
+      // a hit on the fore shield sector, then recharge after the delay
+      const hitFore = (dmg) => page.evaluate(async (d) => {
+        const g = window.__game.game, p = g.player, { applyHit } = await import('./src/damage.js');
+        const local = p.shieldC.clone(); local.z += p.shieldR.z;
+        const src = g.ships.find((s) => s.team !== p.team);
+        return applyHit(p, { local, point: p.toWorld(local), shield: true, sector: 0 }, d, { shieldMul: 1 }, src);
+      }, dmg);
+      await hitFore(3000);
+      let s = await st();
+      t.assert(s.shields[0] < 7500 * 0.8 && s.shields[1] === 7500, `fore sector absorbs the hit (${s.shields.map(Math.round)})`);
+      const low = s.shields[0];
+      await sim(2);
+      t.assert((await st()).shields[0] === low, 'no recharge during the delay');
+      await sim(8);
+      t.assert((await st()).shields[0] > low + 300, 'sector recharges after the delay');
+      // knock the fore sector flat: the next hit reaches the hull
+      await hitFore(20000);
+      s = await st();
+      t.assert(s.shields[0] <= 0 && s.hull < s.maxHull, `shield collapse lets damage through (${Math.round(s.hull)})`);
+      // boost a sector by clicking the diagram
+      await page.locator('.sec[data-s="1"]').dispatchEvent('pointerdown');
+      s = await st();
+      t.assert(s.shieldBoost === 1, 'clicking the aft sector boosts it');
+      await page.waitForTimeout(400);
+      await t.shot('damage-status');
+      // engines destroyed: top speed falls
+      await page.evaluate(() => { const p = window.__game.game.player; p.subs.engines.hp = 0; p.vel.set(0, 0, 0); p.setDetent(5); });
+      await sim(20);
+      s = await st();
+      t.assert(s.speed < 30, `engines out: ship accelerates far slower (${s.speed.toFixed(0)} m/s after 20 s, ~64 when intact)`);
+      // critical hit starts a fire; damage control puts it out
+      await page.evaluate(() => { const g = window.__game.game; g.damage.critical(g.player, g.player.subs.reactor.pos.clone(), 900, null); g.player.fires.push({ p: g.player.shieldC.clone(), t: 6, dps: 5 }); });
+      s = await st();
+      t.assert(s.fires >= 1, 'fire on board');
+      await sim(25);
+      t.assert((await st()).fires === 0, 'fires burn out / are contained');
+      // staged destruction of a Kesh cruiser near the player
+      await page.evaluate(() => {
+        const g = window.__game.game, k = g.ships.find((s) => s.cls === 'kesh');
+        k.root.position.set(1800, 600, 5200); k.root.updateMatrixWorld(); k.inv.copy(k.root.matrixWorld).invert();
+        g.player.target = k; k.hull = 1;
+        g.camera.yaw = Math.PI * 0.85; g.camera.pitch = 0.25; g.camera.zoom = 1.6;
+      });
+      await page.evaluate(async () => { const g = window.__game.game, k = g.player.target, { applyHit } = await import('./src/damage.js'); const local = k.shieldC.clone(); applyHit(k, { local, point: k.toWorld(local), shield: false, sector: 0 }, 99999, {}, g.player); });
+      await sim(1);
+      let k = await page.evaluate(() => { const k = window.__game.game.player.target; return { alive: k.alive, dying: k.dying, blown: !!k.blown }; });
+      t.assert(!k.alive && k.dying && !k.blown, 'stage 1: explosion cascade');
+      await page.waitForTimeout(500);
+      await t.shot('death-cascade');
+      await sim(4);
+      k = await page.evaluate(() => { const k = window.__game.game.player.target; return { blown: !!k.blown, wreck: !!k.wreck, gap: k.model.fore.position.distanceTo(k.model.aft.position) }; });
+      t.assert(k.blown && k.wreck, 'stage 2: reactor blast leaves a wreck');
+      await sim(20);
+      k = await page.evaluate(() => { const k = window.__game.game.player.target; return { gap: k.model.fore.position.distanceTo(k.model.aft.position) }; });
+      t.assert(k.gap > 300, `stage 3: hull broken in two and drifting apart (${Math.round(k.gap)} m)`);
+      await page.waitForTimeout(500);
+      await t.shot('death-wreck');
+      // pause menu: camera shake slider + off switch
+      await page.click('.pause-btn');
+      t.assert(await page.evaluate(() => window.__game.engine.time.paused), 'menu pauses the battle');
+      await page.locator('.p-shake').fill('0.2');
+      await page.click('.p-shakeoff');
+      const set = await page.evaluate(() => ({ shake: window.__game.settings.shake, on: window.__game.settings.shakeOn }));
+      t.assert(set.shake === 0.2 && set.on === false, `shake slider and off switch (${JSON.stringify(set)})`);
+      await t.shot('pause-menu');
+      await page.click('.p-shakeoff');
+      await page.click('.p-resume');
+      t.assert(!(await page.evaluate(() => window.__game.engine.time.paused)), 'resume unpauses');
+    },
+  },
 ];
