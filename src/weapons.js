@@ -50,6 +50,8 @@ function boltColor(type, faction) {
   }
 }
 const STREAK = { heavy: [9, 0.06], macro: [9, 0.06], broadside: [8, 0.05], gundeck: [8, 0.05], secondary: [3.5, 0.04], pd: [1.6, 0.03], massdriver: [4, 0.05], ion: [7, 0.05], plasma: [26, 0.03], ram: [22, 0.03], flaser: [1.4, 0.03], flak: [3, 0.03], fflak: [2, 0.03] };
+/** Capital-ship light guns against small craft: dangerous, but a run should be survivable. */
+const CRAFT_DMG = { pd: 0.3, flak: 0.4, secondary: 0.45 };
 const FLASH = { heavy: 70, macro: 70, broadside: 55, gundeck: 55, secondary: 20, pd: 6, massdriver: 60, ion: 40, plasma: 90, ram: 90, flak: 16, flaser: 4, fflak: 6 };
 
 class Projectile {
@@ -202,7 +204,8 @@ export class Weapons {
       ship.magazine[t.type]--;
     }
     const geo = this.geoOf(t);
-    t.salvo = geo ? geo.xs.length : 1; t.salvoT = 0; t.salvoTarget = target; t.aimPoint.copy(aim);
+    // point defence alternates barrels, one round per cycle; other turrets fire every barrel
+    t.salvo = geo && t.type !== 'pd' ? geo.xs.length : 1; t.salvoT = 0; t.salvoTarget = target; t.aimPoint.copy(aim);
     t.cd = W.reload * rand(0.97, 1.05) * reloadMul;
     return true;
   }
@@ -212,8 +215,9 @@ export class Weapons {
     const i = t.barrel++;
     const from = this.muzzle(ship, t, i, new THREE.Vector3());
     const dir = _v4.subVectors(t.aimPoint, from).normalize();
-    const vsSmall = t.salvoTarget && t.salvoTarget.isCraft;
-    let sp = (W.spread || 0) * (ship.isPlayer ? 1 : 1.6 / diff().aiSkill) * (vsSmall ? 2.5 : 1);
+    const vsSmall = t.salvoTarget && t.salvoTarget.isCraft, vsMissile = t.salvoTarget && t.salvoTarget.missile;
+    // tracking small, fast, jinking targets is hard
+    let sp = (W.spread || 0) * (ship.isPlayer ? 1 : 1.6 / diff().aiSkill) * (vsSmall ? 4.5 : vsMissile ? 3 : 1);
     if (ship.sensorFactor) sp *= 1 + (1 - ship.sensorFactor()) * 3;
     dir.x += rand(-sp, sp); dir.y += rand(-sp, sp); dir.z += rand(-sp, sp); dir.normalize();
     const p = this.spawn(t.type, ship, from, dir);
@@ -398,7 +402,7 @@ export class Weapons {
       if (W.auto) { this.defend(ship, t, dt); continue; }
       if (t.type === 'secondary') {
         // secondaries defend against craft and missiles first
-        const f = this.nearestCraft(ship, this.mountWorld(ship, t, _v3), 5000, true) || this.nearestMissile(ship, _v3, 3000);
+        const f = this.nearestCraft(ship, this.mountWorld(ship, t, _v3), 2500, true);
         if (f) { this.engageSmall(ship, t, f, dt); continue; }
       }
       if (t.type === 'mine') {
@@ -592,14 +596,16 @@ export class Weapons {
         for (const f of craft) if (f.alive && f.team !== p.team && segPointDistSq(p.prev, p.pos, f.pos) < f.hitR2) { hitCraft = f; break; }
         if (hitCraft) {
           if (W.kind === 'flak') { this.flakBurst(p); continue; }
-          hitCraft.damage(p.dmg, p.owner); this.fx.impact(hitCraft.pos, _v1.set(0, 1, 0), 6, p.color, hitCraft.vel); p.alive = false; continue;
+          if (p.owner?.stats) p.owner.stats.hits++;
+          hitCraft.damage(p.dmg * (CRAFT_DMG[p.type] ?? 1), p.owner); this.fx.impact(hitCraft.pos, _v1.set(0, 1, 0), 6, p.color, hitCraft.vel); p.alive = false; continue;
         }
-        if (W.antiMissile || p.type === 'secondary' || p.type === 'flaser') {
+        if (W.antiMissile) {
           for (const m of this.missiles) {
             if (!m.alive || m.team === p.team) continue;
-            if (segPointDistSq(p.prev, p.pos, m.pos) < (m.type === 'torpedo' || m.type === 'ftorp' ? 500 : 260)) {
+            if (segPointDistSq(p.prev, p.pos, m.pos) < (m.type === 'torpedo' || m.type === 'ftorp' ? 300 : 220)) {
               if (W.kind === 'flak') { this.flakBurst(p); break; }
-              m.hp -= p.dmg; this.fx.impact(m.pos, _v1.set(0, 1, 0), 5, p.color); p.alive = false;
+              m.hp -= p.dmg * (m.type === 'torpedo' || m.type === 'ftorp' ? 0.25 : 1); // torpedoes are armoured
+              this.fx.impact(m.pos, _v1.set(0, 1, 0), 5, p.color); p.alive = false;
               if (m.hp <= 0) this.killMissile(m, p.owner);
               break;
             }
@@ -645,8 +651,8 @@ export class Weapons {
     this.fx.add.spawn(p.pos, null, 0.4, 20, W.splash * 0.7, [1, 0.9, 0.6], [0.3, 0.15, 0.05], 1.1);
     this.fx.smoke.spawn(p.pos, null, 2.5, 30, W.splash * 0.9, [0.3, 0.28, 0.26], [0.1, 0.1, 0.1], 0.5, 0.2);
     const r2 = W.splash * W.splash;
-    for (const f of this.game.fighters || []) if (f.alive && f.team !== p.team && f.pos.distanceToSquared(p.pos) < r2) f.damage(p.dmg * (1 - f.pos.distanceTo(p.pos) / W.splash * 0.6), p.owner);
-    for (const m of this.missiles) if (m.alive && m.team !== p.team && m.pos.distanceToSquared(p.pos) < r2) { m.hp -= p.dmg; if (m.hp <= 0) this.killMissile(m, p.owner); }
+    for (const f of this.game.fighters || []) if (f.alive && f.team !== p.team && f.pos.distanceToSquared(p.pos) < r2) f.damage(p.dmg * (CRAFT_DMG[p.type] ?? 1) * (1 - f.pos.distanceTo(p.pos) / W.splash * 0.6), p.owner);
+    for (const m of this.missiles) if (m.alive && m.team !== p.team && m.pos.distanceToSquared(p.pos) < r2) { m.hp -= p.dmg * (m.type === 'torpedo' || m.type === 'ftorp' ? 0.15 : 0.3); if (m.hp <= 0) this.killMissile(m, p.owner); }
     p.alive = false;
   }
   killMissile(m, by) {

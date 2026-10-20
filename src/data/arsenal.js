@@ -58,12 +58,12 @@ export const WEAPONS = {
   },
   torpedo: {
     name: 'Torpedo tube', short: 'TRP', role: 'big ships', desc: 'Heavy torpedoes from the bow. Slow, homing, devastating if they reach the hull.',
-    kind: 'missile', range: 6000, reload: 20, speed: 560, accel: 180, turn: 45, life: 22, mhp: 30, dmg: 950, pierce: 0.55, splash: 90, shieldMul: 0.6, hullMul: 1.2, sysMul: 1.3,
+    kind: 'missile', range: 6000, reload: 20, speed: 560, accel: 180, turn: 45, life: 22, mhp: 48, dmg: 950, pierce: 0.55, splash: 90, shieldMul: 0.6, hullMul: 1.2, sysMul: 1.3,
     traverse: 0, tol: 20, arc: { axis: 'fwd', half: 20 }, barrels: 1, ammo: 24, color: 0xff8a5a, group: true, isNew: true, needsLock: true,
   },
   flak: {
     name: 'Flak battery', short: 'FLK', role: 'bombers', desc: 'Bursting shells that fill the air near the ship. Shreds bombers in groups.',
-    kind: 'flak', range: 3000, reload: 0.6, speed: 1800, dmg: 22, splash: 140, spread: 0.01,
+    kind: 'flak', range: 3000, reload: 0.6, speed: 1800, dmg: 14, splash: 140, spread: 0.01,
     traverse: 120, tol: 99, arc: { axis: 'any', half: 180 }, barrels: 2, ammo: null, color: 0xffc070, group: false, isNew: true, auto: true, antiFighter: true, antiMissile: true,
   },
   mine: {
@@ -95,9 +95,9 @@ export const WEAPONS = {
   },
 
   /* ---- small-craft weapons ---- */
-  flaser:  { name: 'Fighter laser', kind: 'bolt', range: 1100, speed: 2400, dmg: 5, spread: 0.006, color: 0xbfe8ff },
-  rocket:  { name: 'Rocket pod', kind: 'missile', range: 2200, speed: 700, accel: 400, turn: 60, life: 6, mhp: 4, dmg: 45, splash: 25, sysMul: 1.8, color: 0xffc080 },
-  ftorp:   { name: 'Fighter torpedo', kind: 'missile', range: 4000, speed: 520, accel: 200, turn: 40, life: 14, mhp: 18, dmg: 600, pierce: 0.55, splash: 70, shieldMul: 0.6, hullMul: 1.2, sysMul: 1.3, color: 0xff8a5a },
+  flaser:  { name: 'Fighter laser', kind: 'bolt', range: 1100, speed: 2400, dmg: 9, spread: 0.006, color: 0xbfe8ff },
+  rocket:  { name: 'Rocket pod', kind: 'missile', range: 3200, speed: 820, accel: 450, turn: 60, life: 6, mhp: 22, dmg: 70, splash: 25, sysMul: 1.8, color: 0xffc080 },
+  ftorp:   { name: 'Fighter torpedo', kind: 'missile', range: 5000, speed: 700, accel: 260, turn: 40, life: 14, mhp: 60, dmg: 600, pierce: 0.55, splash: 70, shieldMul: 0.6, hullMul: 1.2, sysMul: 1.3, color: 0xff8a5a },
   fflak:   { name: 'Gunship flak', kind: 'flak', range: 1400, speed: 1500, dmg: 9, splash: 60, spread: 0.01, color: 0xffc070 },
 };
 

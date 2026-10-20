@@ -122,7 +122,7 @@ button{font:inherit;color:inherit}
 @media (max-width:720px){.sides,.diff{grid-template-columns:1fr}}
 
 /* ---------------- weapon grid ---------------- */
-.wgrid{right:12px;bottom:12px;padding:10px 12px;width:min(520px,calc(100vw - 860px));min-width:340px}
+.wgrid{padding:10px 12px}
 .wg-h{display:flex;justify-content:space-between;align-items:baseline}
 .wg-hint{font-size:10px;color:var(--dim);letter-spacing:.06em}
 .wg-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:6px}
@@ -174,7 +174,7 @@ button{font:inherit;color:inherit}
 .bracket span{position:absolute;left:0;top:100%;margin-top:4px;white-space:nowrap;font-family:var(--f-label);font-size:11px;letter-spacing:.12em;color:var(--hostile);text-shadow:0 1px 2px #000}
 
 /* ---------------- target panel ---------------- */
-.tgt{right:12px;top:12px;width:280px;padding:10px 12px;max-height:calc(100vh - 380px);overflow:auto}
+.tgt{padding:10px 12px}
 .tgt-h{display:flex;justify-content:space-between;align-items:center;font-family:var(--f-label);letter-spacing:.2em;color:var(--dim);font-size:11px;margin-bottom:6px}
 .tgt-none{color:var(--dim);font-size:11px;line-height:1.5}
 .tgt-body{display:none}
@@ -199,7 +199,6 @@ button{font:inherit;color:inherit}
 .contact{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:baseline;background:none;border:1px solid transparent;padding:3px 5px;color:var(--ink);cursor:pointer;text-align:left;font:inherit}
 .contact:hover{border-color:var(--line2)} .contact.on{border-color:var(--hostile);background:rgba(224,106,74,.08)}
 .contact b{font-weight:500;color:var(--hostile)} .contact small{color:var(--dim);font-size:9.5px} .contact em{font-style:normal;color:var(--ink);font-variant-numeric:tabular-nums}
-@media (max-width:1400px){.wgrid{width:420px}}
 
 /* ---------------- scope ---------------- */
 .scope{position:fixed;inset:0;pointer-events:none;z-index:8;display:none}
@@ -299,3 +298,32 @@ body.scoped .card,body.scoped .look-badge,body.scoped .bracket{visibility:hidden
 .end-btns .go{margin-top:0;flex:1}
 .end-btns .btn{padding:0 18px;font-size:13px}
 @media (max-width:640px){.end-stats{grid-template-columns:repeat(2,1fr)}}
+
+/* ---------------- right column: target panel, fighters, batteries ---------------- */
+.rightcol{position:fixed;right:12px;top:12px;bottom:12px;width:min(500px,36vw);min-width:340px;display:flex;flex-direction:column;gap:8px;pointer-events:none;justify-content:flex-start}
+.rightcol>.card{position:relative;left:auto;right:auto;top:auto;bottom:auto;width:auto;pointer-events:auto}
+.rightcol>.tgt{flex:0 1 auto;min-height:0;overflow:auto;max-height:none}
+.rightcol>.fpanel{flex:none}
+.rightcol>.wgrid{flex:none;margin-top:auto;min-width:0}
+.fpanel{padding:8px 12px}
+.fp-h{display:flex;align-items:center;gap:10px}
+.fp-h .ctl-h{margin:0}
+.fp-res{flex:1;font-style:normal;font-size:10px;color:var(--dim)}
+.fp-h .btn{padding:2px 8px;font-size:10px}
+.fp-list{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin:6px 0}
+.fp-sq{display:grid;grid-template-columns:30px 1fr auto;grid-template-rows:auto auto;gap:0 6px;align-items:center;text-align:left;background:#0c1113;border:1px solid var(--line);padding:3px 6px;color:var(--ink);cursor:pointer;font:inherit;font-size:11px;transition:transform .06s}
+.fp-sq i{grid-row:span 2;font-style:normal;font-family:var(--f-label);font-size:10px;letter-spacing:.06em;color:var(--dim);border:1px solid var(--line2);text-align:center;padding:2px 0}
+.fp-sq b{font-weight:600;color:var(--friendly)}
+.fp-sq .fp-n{color:var(--ink);font-variant-numeric:tabular-nums}
+.fp-sq .fp-st{font-family:var(--f-label);letter-spacing:.1em;font-size:10px;color:var(--dim)}
+.fp-sq .fp-o{font-family:var(--f-label);letter-spacing:.08em;font-size:10px;color:var(--cyan);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+.fp-sq.sel{border-color:var(--cyanHi);box-shadow:0 0 0 1px var(--cyan) inset}
+.fp-sq:hover{border-color:var(--cyan)}
+.fp-orders{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.fp-orders .btn{padding:4px 2px;font-size:10px}
+.fp-orders .btn.dim{opacity:.5}
+.fp-row{display:flex;gap:6px;align-items:center;margin-top:6px}
+.fp-row .btn{padding:4px 10px}
+.fp-row .btn.hot{background:linear-gradient(#24382a,#17261c);border-color:var(--green);color:#cfe8c0}
+.fp-row .btn:disabled{opacity:.45;cursor:default}
+.fp-hint{font-size:10px;color:var(--dim)}

@@ -6,6 +6,7 @@ import { bus, settings, saveSettings, clamp, DEG } from './core.js';
 import { DETENTS } from './ships.js';
 import { MODES } from './game.js';
 import { audio } from './audio.js';
+import { ORDERS } from './fighters.js';
 
 const h = (tag, cls, html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
 
@@ -273,5 +274,85 @@ export class WeaponGrid {
       el.querySelector('.wt-bar i').style.width = `${(st.readyFrac || 0) * 100}%`;
     }
     for (const b of this.root.querySelectorAll('[data-d]')) b.classList.toggle('on', b.dataset.d === W.doctrine);
+  }
+}
+
+const ROLE_ICON = { interceptor: 'INT', strike: 'STK', bomber: 'BMB', gunboat: 'GUN' };
+
+/** Fighter command: select a squadron, (lock a target), give an order. Launch and recall. */
+export class FighterPanel {
+  constructor(game, parent) {
+    this.game = game;
+    this.sel = null;
+    this.open = true;
+    this.root = h('div', 'card fpanel');
+    parent.appendChild(this.root);
+    this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.built = null;
+    bus.on('key', ({ action }) => {
+      if (action === 'fighters') { this.open = !this.open; this.build(); }
+      if (action === 'launch') this.launch(this.selected());
+    });
+  }
+  squads() { return this.game.flight.squadronsOf(this.game.player); }
+  selected() { return this.squads().find((s) => s.id === this.sel) || null; }
+  launch(sq) {
+    if (!sq) return;
+    if (sq.launch()) audio.detent();
+    else bus.emit('radio', { from: 'FLIGHT OPS', text: sq.hangarOK() ? `${sq.name} is ${sq.status.toLowerCase()}.` : 'Hangar is down. Cannot launch.', level: 'warn' });
+  }
+  order(o) {
+    const sq = this.selected(), p = this.game.player;
+    if (!sq) { bus.emit('radio', { from: 'FLIGHT OPS', text: 'Select a squadron first.', level: 'info' }); return; }
+    if (o === 'attack' && !(p.target && p.target.alive)) { bus.emit('radio', { from: 'FLIGHT OPS', text: 'Lock a target for the attack first.', level: 'warn' }); return; }
+    sq.setOrder(o, o === 'attack' ? p.target : null);
+    if (sq.status === 'READY' && o !== 'rtb') this.launch(sq);
+  }
+  build() {
+    const p = this.game.player;
+    this.built = p;
+    const sqs = this.squads();
+    this.root.style.display = sqs.length ? '' : 'none';
+    if (!sqs.length) return;
+    if (!this.selected()) this.sel = sqs[0].id;
+    this.root.innerHTML = `
+      <div class="fp-h"><span class="ctl-h">Fighters</span><em class="fp-res"></em><button class="btn fp-tog">${this.open ? 'HIDE' : 'SHOW'}</button></div>
+      <div class="fp-body" style="${this.open ? '' : 'display:none'}">
+        <div class="fp-list">${sqs.map((s) => `<button class="fp-sq" data-id="${s.id}"><i>${ROLE_ICON[s.role]}</i><b>${s.name}</b><span class="fp-n"></span><span class="fp-st"></span><span class="fp-o"></span></button>`).join('')}</div>
+        <div class="fp-orders">${Object.entries(ORDERS).map(([k, o]) => `<button class="btn" data-o="${k}" title="${o.help}">${o.short}</button>`).join('')}</div>
+        <div class="fp-row"><button class="btn fp-launch">LAUNCH</button><button class="btn fp-all">LAUNCH ALL</button><span class="fp-hint">Pick a squadron, lock a target, then order.</span></div>
+      </div>`;
+    tactile(this.root.querySelector('.fp-tog'), 'click').addEventListener('click', () => { this.open = !this.open; this.build(); });
+    for (const b of this.root.querySelectorAll('.fp-sq')) tactile(b, 'click').addEventListener('click', () => { this.sel = Number(b.dataset.id); });
+    for (const b of this.root.querySelectorAll('[data-o]')) tactile(b, 'switch').addEventListener('click', () => this.order(b.dataset.o));
+    tactile(this.root.querySelector('.fp-launch'), 'detent').addEventListener('click', () => this.launch(this.selected()));
+    tactile(this.root.querySelector('.fp-all'), 'detent').addEventListener('click', () => { for (const s of this.squads()) if (s.status === 'READY') s.launch(); });
+  }
+  render() {
+    const p = this.game.player;
+    if (!p) return;
+    if (this.built !== p) this.build();
+    if (!this.open || !this.squads().length) return;
+    const res = this.game.flight.reserveOf(p);
+    this.root.querySelector('.fp-res').textContent = `reserve ${res}`;
+    for (const b of this.root.querySelectorAll('.fp-sq')) {
+      const s = this.squads().find((x) => x.id === Number(b.dataset.id));
+      if (!s) continue;
+      b.classList.toggle('sel', s.id === this.sel);
+      const n = s.status === 'ACTIVE' || s.status === 'RTB' || s.status === 'LAUNCHING' ? `${s.alive.length + s.toLaunch}/${s.size}` : `${s.ready}/${s.size}`;
+      b.querySelector('.fp-n').textContent = n;
+      const st = b.querySelector('.fp-st');
+      st.textContent = s.status === 'REARMING' ? `REARM ${Math.ceil(s.rearmT)}s` : s.status;
+      st.className = `fp-st ${s.status === 'LOST' ? 'crit' : s.status === 'ACTIVE' ? 'ok' : s.status === 'READY' ? 'info' : 'warn'}`;
+      b.querySelector('.fp-o').textContent = s.status === 'READY' || s.status === 'LOST' ? '' : `${ORDERS[s.order].short}${s.order === 'attack' && s.orderTarget ? ' · ' + s.orderTarget.name : ''}`;
+    }
+    const sq = this.selected();
+    for (const b of this.root.querySelectorAll('[data-o]')) {
+      b.classList.toggle('on', !!sq && sq.status !== 'READY' && sq.order === b.dataset.o);
+      if (b.dataset.o === 'attack') b.classList.toggle('dim', !(p.target && p.target.alive));
+    }
+    const lb = this.root.querySelector('.fp-launch');
+    lb.disabled = !sq || sq.status !== 'READY';
+    this.root.querySelector('.fp-launch').classList.toggle('hot', !!sq && sq.status === 'READY');
   }
 }

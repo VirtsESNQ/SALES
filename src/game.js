@@ -6,6 +6,7 @@ import { Ship } from './ships.js';
 import { CameraRig } from './camera.js';
 import { spawnFleets, Mission } from './mission.js';
 import { FleetAI } from './ai.js';
+import { FighterOps } from './fighters.js';
 import { audio } from './audio.js';
 import { FX } from './fx.js';
 import { Weapons } from './weapons.js';
@@ -34,6 +35,7 @@ export class Game {
     this.weapons = new Weapons(this);
     this.damage = new DamageSystem(this);
     this.ai = new FleetAI(this);
+    this.flight = new FighterOps(this);
     this.mission = new Mission(this);
     this.autoplay = false; // tests: the player's ship is flown by the AI
     this.camera = new CameraRig(engine, this);
@@ -69,6 +71,7 @@ export class Game {
     for (const s of this.systems) s.preUpdate?.(dt);
     for (const s of this.ships) s.update(dt);
     this.ai.update(dt);
+    this.flight.update(dt);
     this.weapons.update(dt);
     this.damage.update(dt);
     this.mission.update(dt);
@@ -84,6 +87,7 @@ export class Game {
     this.turrets.flush();
     this.fx.streaks.begin();
     this.weapons.render(dt);
+    this.flight.render(dt);
     this.damage.render(dt);
     this.fx.render(dt);
     for (const s of this.systems) s.render?.(dt);
@@ -100,6 +104,7 @@ export class Game {
       groups: this.weapons.groupState, scope: this.scopeActive, hull: p.hull, maxHull: p.maxHull, alive: p.alive, shields: [...p.shields], shieldBoost: p.shieldBoost, fires: p.fires?.length || 0, subs: Object.fromEntries(Object.entries(p.subs).map(([k, v]) => [k, { hp: v.hp / v.max, offline: v.offline }])), stats: { ...p.stats },
       over: this.mission.over, result: this.mission.result, missionT: this.mission.t, reinforced: this.mission.reinforced,
       fleet: this.ships.map((s) => ({ n: s.name, team: s.team, alive: s.alive, hull: Math.round(s.hull), withdrawn: !!s.withdrawn })),
+      craft: this.fighters.length, squadrons: this.flight.squadronsOf(p).map((q) => ({ name: q.name, status: q.status, order: q.order, alive: q.alive.length, ready: q.ready })),
       projectiles: this.weapons.list.length, missiles: this.weapons.missiles.length, mines: this.weapons.mines.length,
     } : null;
   }

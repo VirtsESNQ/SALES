@@ -14,7 +14,7 @@ const STATE_CLASS = { ready: 'ok', traversing: 'warn', reload: 'dim', range: 'wa
 const SUB_NAMES = { hull: 'HULL', weapons: 'WEAPONS', engines: 'ENGINES', shieldgen: 'SHIELDS', sensors: 'SENSORS', reactor: 'REACTOR', hangar: 'HANGAR', siege: 'SIEGE GUN' };
 
 export class HUD {
-  constructor(game, ui) {
+  constructor(game, ui, column = ui) {
     this.game = game;
     this.ui = ui;
     this.leadScreen = { visible: false, x: 0, y: 0, world: new THREE.Vector3() };
@@ -42,7 +42,7 @@ export class HUD {
         <div class="tgt-subs"><small>AIM AT</small><div class="subs"></div></div>
       </div>
       <div class="tgt-contacts"><small>CONTACTS</small><div class="clist"></div></div>`;
-    ui.appendChild(this.panel);
+    column.appendChild(this.panel);
     this.panel.addEventListener('pointerdown', (e) => e.stopPropagation());
     tactile(this.panel.querySelector('.btn-lock'), 'press').addEventListener('click', () => this.lockNearest());
     this.contactsT = 0;
