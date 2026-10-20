@@ -49,4 +49,15 @@ export const scenarios = [
       t.assert(r.rampart === 46 && r.varr === 69 && r.kesh === 35 && r.ulthane === 28, `sheet totals ${JSON.stringify(r)}`);
     },
   },
+  ...['planet', 'lineup', 'halberd', 'rampart', 'warden', 'varr', 'kesh', 'ulthane', 'talon', 'viper', 'falcon', 'hammer', 'wardengs', 'razor', 'wasp', 'scythe', 'maul'].map((m) => ({
+    name: `model-${m}`,
+    url: m === 'planet' ? 'index.html?test=1&showcase=halberd&az=3.6&dist=1.3' : `index.html?test=1&showcase=${m}`,
+    async run(page, t) {
+      await waitGame(page);
+      await page.waitForTimeout(900);
+      const info = await page.evaluate(() => window.__game.state());
+      t.assert(info.ships.length + info.craft > 0, `showcase has content ${JSON.stringify(info)}`);
+      await t.shot(`model-${m}`);
+    },
+  })),
 ];

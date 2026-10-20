@@ -119,7 +119,7 @@ export class Engine {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.2;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x020305);
     // World units are metres. The far plane is long so ships 60 km away still render.
