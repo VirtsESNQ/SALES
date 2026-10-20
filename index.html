@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Halberd Fleet Command</title>
+<link rel="stylesheet" href="src/style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui"></div>
+<div id="boot" class="boot">
+  <div class="boot-card">
+    <div class="boot-kicker">Concord Navy · Operation Black Tide</div>
+    <h1>HALBERD FLEET COMMAND</h1>
+    <div id="boot-status" class="boot-status">Loading…</div>
+  </div>
+</div>
+<noscript>This game needs JavaScript and WebGL.</noscript>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
