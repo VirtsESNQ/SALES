@@ -41,6 +41,8 @@ const DEFAULT_SETTINGS = {
   volume: 0.7,
   mouseSteer: false,
   hints: true,
+  lastSide: null,
+  lastShip: null,
   keys: { ...DEFAULT_KEYS },
 };
 function loadSettings() {

@@ -25,7 +25,7 @@ export function startShowcase(engine, env, name) {
     const glow = geo.glow ? new THREE.InstancedMesh(geo.glow, m.lights, positions.length) : null;
     const mat = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), one = new THREE.Vector3(1, 1, 1);
     positions.forEach((p, i) => { mat.compose(p, q, one); hull.setMatrixAt(i, mat); glow?.setMatrixAt(i, mat); });
-    scene.add(hull); if (glow) scene.add(glow);
+    scene.add(hull); if (glow) { scene.add(glow); hull.userData.glow = glow; }
     craftMeshes.push(hull);
   };
 
@@ -69,6 +69,11 @@ export function startShowcase(engine, env, name) {
         }
       }
       turrets.flush();
+    },
+    dispose() {
+      for (const { s } of ships) scene.remove(s.root);
+      for (const m of craftMeshes) { scene.remove(m); if (m.userData.glow) scene.remove(m.userData.glow); }
+      turrets.clear();
     },
     info: () => ({ ships: ships.map(({ s }) => ({ cls: s.design.cls, mounts: s.design.mounts.length })), craft: craftMeshes.length }),
   };

@@ -22,6 +22,12 @@ export function getDesign(cls) {
   const parts = d.builder.build(materials(d.faction));
   delete d.builder;
   d.parts = parts;
+  // bounding radius from the real geometry (camera framing, culling, collision)
+  const box = new THREE.Box3();
+  for (const grp of [parts.fore, parts.aft]) if (grp) for (const m of grp.children) { m.geometry.computeBoundingBox(); box.union(m.geometry.boundingBox); }
+  d.bounds = box;
+  const ext = (k) => Math.max(Math.abs(box.min[k]), Math.abs(box.max[k]));
+  d.radius = Math.hypot(ext('x'), ext('y'), ext('z'));
   d.cls = cls;
   // The mount list must match the loadout on the design sheet exactly.
   const counts = {};

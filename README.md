@@ -11,6 +11,18 @@ python3 -m http.server 8000
 # open http://localhost:8000/
 ```
 
+## Play
+
+1. Pick your side (Concord Navy or Hegemony Battle Fleet), your ship and a difficulty.
+2. Everything works with the mouse. The control card (bottom left):
+   - **Throttle lever**: drag it, or click a detent (Full Rev, Stop, 25/50/75/100%). **Boost** overheats if you hold it too long.
+   - **Helm**: drag the ship's wheel round to set the rudder. It stays where you leave it, like a real rudder. **Planes** climb or dive. **Centre** (or double-click the wheel) puts the rudder midships.
+   - **Autopilot**: Hold heading, Auto-level, Slow down.
+   - **Mode**: Navigation (drag to look around), Combat (the cursor aims; push it toward the screen edge to look), Precision (fine helm control).
+   - **Mouse: Look / Steer**: in Steer the hull turns toward the cursor. The badge at the top always says which one is active.
+   - Mouse wheel zooms the view. Middle-drag orbits the view in any mode.
+3. Optional keys (rebindable later in the pause menu): W/S throttle, A/D yaw, Q/E roll, R/F vertical thrust, Shift boost, X slow down.
+
 ## Test it
 
 The headless Chromium smoke test (Playwright) serves the repo, opens every scenario, fails on any console error, and writes screenshots to `tests/shots/`.
