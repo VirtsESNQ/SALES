@@ -6,7 +6,7 @@ import { Environment } from './environment.js';
 import { startShowcase } from './showcase.js';
 import { Game } from './game.js';
 import { Controls, WeaponGrid } from './controls.js';
-import { HUD, ShipStatus, Comms } from './hud.js';
+import { HUD, ShipStatus, Comms, Objectives, Alerts, EndScreen } from './hud.js';
 import { showMenu, PauseMenu } from './menu.js';
 import { PLAYABLE } from './mission.js';
 
@@ -57,8 +57,12 @@ function boot() {
     game.status = new ShipStatus(game, ui);
     game.comms = new Comms(game, ui);
     game.pause = new PauseMenu(game, ui);
+    game.objectives = new Objectives(game, ui);
+    game.alerts = new Alerts(game, ui);
+    game.end = new EndScreen(game, ui);
+    game.autoplay = TEST && QUERY.get('autoplay') === '1';
     game.start(choice);
-    const uiParts = [controls, game.hud, game.grid, game.status, game.comms];
+    const uiParts = [controls, game.hud, game.grid, game.status, game.comms, game.alerts];
     engine.add({ update: (dt) => game.update(dt), render: (dt) => { game.render(dt); for (const u of uiParts) u.render(dt); } });
   };
   const side = QUERY.get('side'), ship = QUERY.get('ship');

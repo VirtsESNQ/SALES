@@ -2,7 +2,7 @@
 // target brackets, target panel (class, range, heading, closing speed, shields, hull, threat,
 // subsystem aim), contact list. Kept deliberately quiet; detail sits in panels, not on the view.
 import * as THREE from 'three';
-import { bus, fmtKm, DEG } from './core.js';
+import { bus, fmtKm, DEG, settings } from './core.js';
 import { WEAPONS } from './data/arsenal.js';
 import { SECTORS } from './ships.js';
 import { audio } from './audio.js';
@@ -313,4 +313,67 @@ export class Comms {
       if (l.t <= 0) { l.el.remove(); this.lines.splice(i, 1); }
     }
   }
+}
+
+/** Objectives with a one-line hint for the next thing to do. */
+export class Objectives {
+  constructor(game, ui) {
+    this.game = game;
+    this.root = h('div', 'card objs');
+    ui.appendChild(this.root);
+    this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.list = [];
+    bus.on('objectives', (list) => { this.list = list; this.draw(); });
+  }
+  draw() {
+    const next = this.list.find((o) => !o.main && o.state === 'active') || this.list.find((o) => o.main && o.state === 'active');
+    this.root.innerHTML = `<div class="ob-h">OBJECTIVES</div>${this.list.map((o) => `<div class="ob ${o.state} ${o.main ? 'main' : ''}"><i></i><span>${o.text}</span></div>`).join('')}
+      ${next && settings.hints ? `<div class="ob-hint"><b>NEXT</b>${next.hint}</div>` : ''}`;
+  }
+  render() {}
+}
+
+/** Big centred alert line for things that need attention now. */
+export class Alerts {
+  constructor(game, ui) {
+    this.root = h('div', 'alerts');
+    ui.appendChild(this.root);
+    this.t = 0;
+    bus.on('alert', ({ text, level }) => { this.root.innerHTML = `<span class="al ${level || 'warn'}">${text}</span>`; this.t = level === 'crit' ? 3.5 : 2.5; this.root.style.opacity = 1; });
+  }
+  render(dt) {
+    if (this.t <= 0) return;
+    this.t -= dt;
+    if (this.t < 0.6) this.root.style.opacity = Math.max(0, this.t / 0.6);
+  }
+}
+
+/** End screen with stats and restart. */
+export class EndScreen {
+  constructor(game, ui) {
+    this.game = game;
+    this.root = h('div', 'endscreen');
+    ui.appendChild(this.root);
+    this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
+    bus.on('mission:end', (r) => { setTimeout(() => this.show(r), 4500); });
+  }
+  show(r) {
+    const st = this.game.mission.stats();
+    this.root.innerHTML = `<div class="end-in ${r.victory ? 'win' : 'loss'}">
+      <div class="menu-kick">Operation Black Tide</div>
+      <h1>${r.victory ? 'VICTORY' : 'DEFEAT'}</h1>
+      <p class="end-r">${r.reason}</p>
+      <div class="end-stats">
+        <span><small>BATTLE TIME</small>${st.time}</span><span><small>DAMAGE DEALT</small>${st.dealt.toLocaleString('en-US')}</span>
+        <span><small>DAMAGE TAKEN</small>${st.taken.toLocaleString('en-US')}</span><span><small>ACCURACY</small>${st.accuracy}%</span>
+        <span><small>KILLS</small>${st.kills}</span><span><small>MISSILES SHOT DOWN</small>${st.intercepts}</span>
+        <span><small>ENEMY SHIPS LOST</small>${st.lostEnemy}</span><span><small>OWN SHIPS LOST</small>${st.lostOwn}</span>
+      </div>
+      <div class="end-btns"><button class="go end-restart">RESTART BATTLE</button><button class="btn end-change">CHANGE SHIP</button></div>
+    </div>`;
+    this.root.classList.add('on');
+    tactile(this.root.querySelector('.end-restart'), 'detent').addEventListener('click', () => import('./menu.js').then((m) => m.restart(this.game.choice)));
+    tactile(this.root.querySelector('.end-change'), 'press').addEventListener('click', () => { location.href = location.pathname; });
+  }
+  render() {}
 }

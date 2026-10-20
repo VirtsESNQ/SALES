@@ -163,7 +163,7 @@ export class Controls {
 
   /** Called every sim step: turn control positions into helm commands. */
   preUpdate() {
-    const s = this.ship; if (!s) return;
+    const s = this.ship; if (!s || s.autopilot) return;
     const inp = this.game.engine.input;
     // optional keys act as temporary overrides on top of the wheel and planes
     this.keyYaw = (inp.held('yawLeft') ? 1 : 0) - (inp.held('yawRight') ? 1 : 0);

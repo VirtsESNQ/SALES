@@ -20,6 +20,14 @@ export const DIFFICULTY = {
 };
 export const diff = () => DIFFICULTY[settings.difficulty] || DIFFICULTY.captain;
 
+/**
+ * Capital ships fight for minutes, not seconds: every hit on a capital hull or shield is scaled.
+ * (Hull/shield values stay as on the design sheets; small craft are not scaled.)
+ */
+export const CAPITAL_DAMAGE = 0.3;
+/** Light guns barely scratch capital armour; their job is fighters and missiles. */
+const LIGHT_VS_CAPITAL = { secondary: 0.4, pd: 0.15, flak: 0.2, flaser: 0.5, fflak: 0.3 };
+
 /** Facing of a local hit point: fore / aft / port / stbd (for armour). */
 function facing(ship, local) {
   const hz = ship.length / 2;
@@ -35,6 +43,7 @@ function facing(ship, local) {
  */
 export function applyHit(ship, h, dmg, def, src) {
   if (!ship.alive) return { shieldDmg: 0, hullDmg: 0 };
+  dmg *= CAPITAL_DAMAGE * (LIGHT_VS_CAPITAL[def.key] ?? 1);
   if (ship.isPlayer && src && src.team !== ship.team) dmg *= diff().taken;
   let rem = dmg, shieldDmg = 0;
   if (h.shield) {

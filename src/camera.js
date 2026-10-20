@@ -170,7 +170,13 @@ export class CameraRig {
         this.looking = true;
       }
     }
-    // keyboard-free orbit nudge (optional keys)
+    // after a few seconds without look input, drift back to the quarter view behind the hull
+    this.idleT = this.looking ? 0 : (this.idleT || 0) + dt;
+    if (this.idleT > 6 && !settings.mouseSteer) {
+      let d = s.heading() + Math.PI + 0.5 - this.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.yaw += d * (1 - Math.exp(-0.35 * dt));
+      this.pitch += (0.3 - this.pitch) * (1 - Math.exp(-0.35 * dt));
+    }
     const R = s.radius;
     _t.copy(s.pos).addScaledVector(s.up(_v), R * 0.1);
     this.target.lerp(_t, 1 - Math.exp(-8 * dt));

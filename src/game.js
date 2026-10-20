@@ -4,7 +4,8 @@ import { bus } from './core.js';
 import { TurretRenderer } from './models.js';
 import { Ship } from './ships.js';
 import { CameraRig } from './camera.js';
-import { spawnFleets } from './mission.js';
+import { spawnFleets, Mission } from './mission.js';
+import { FleetAI } from './ai.js';
 import { audio } from './audio.js';
 import { FX } from './fx.js';
 import { Weapons } from './weapons.js';
@@ -32,6 +33,9 @@ export class Game {
     this.fx = new FX(this.scene);
     this.weapons = new Weapons(this);
     this.damage = new DamageSystem(this);
+    this.ai = new FleetAI(this);
+    this.mission = new Mission(this);
+    this.autoplay = false; // tests: the player's ship is flown by the AI
     this.camera = new CameraRig(engine, this);
     // fire: hold the left button on the battlefield (combat / precision mode, or in the scope)
     bus.on('pointerdown', ({ button }) => {
@@ -48,6 +52,7 @@ export class Game {
     const { ships, player } = spawnFleets(this, choice);
     this.ships = ships;
     this.player = player;
+    if (this.autoplay) player.autopilot = true;
     this.setMode('combat');
     this.camera.recenter();
     bus.emit('game:start', { game: this, choice });
@@ -63,8 +68,10 @@ export class Game {
   update(dt) {
     for (const s of this.systems) s.preUpdate?.(dt);
     for (const s of this.ships) s.update(dt);
+    this.ai.update(dt);
     this.weapons.update(dt);
     this.damage.update(dt);
+    this.mission.update(dt);
     this.fx.update(dt);
     for (const s of this.systems) s.update?.(dt);
     const p = this.player;
@@ -91,6 +98,8 @@ export class Game {
       ships: this.ships.length,
       target: p.target?.name || null, targetSub: p.targetSub, selected: this.weapons.selected, doctrine: this.weapons.doctrine,
       groups: this.weapons.groupState, scope: this.scopeActive, hull: p.hull, maxHull: p.maxHull, alive: p.alive, shields: [...p.shields], shieldBoost: p.shieldBoost, fires: p.fires?.length || 0, subs: Object.fromEntries(Object.entries(p.subs).map(([k, v]) => [k, { hp: v.hp / v.max, offline: v.offline }])), stats: { ...p.stats },
+      over: this.mission.over, result: this.mission.result, missionT: this.mission.t, reinforced: this.mission.reinforced,
+      fleet: this.ships.map((s) => ({ n: s.name, team: s.team, alive: s.alive, hull: Math.round(s.hull), withdrawn: !!s.withdrawn })),
       projectiles: this.weapons.list.length, missiles: this.weapons.missiles.length, mines: this.weapons.mines.length,
     } : null;
   }

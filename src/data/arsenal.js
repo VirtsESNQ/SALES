@@ -117,6 +117,8 @@ export const LOADOUTS = {
   talon:    { secondary: 3, vls: 2, flak: 2, pd: 2 },
 };
 
+for (const [k, w] of Object.entries(WEAPONS)) w.key = k;
+
 export function mountTotal(cls) {
   return Object.values(LOADOUTS[cls] || {}).reduce((a, b) => a + b, 0);
 }

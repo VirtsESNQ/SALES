@@ -24,6 +24,7 @@ export const scenarios = [
     url: 'index.html?test=1&side=concord&ship=halberd',
     async run(page, t) {
       await page.waitForFunction(() => window.__game?.state?.().ship, null, { timeout: 30000 });
+      await page.evaluate(() => { window.__game.game.ai.enabled = false; });
       const st = () => page.evaluate(() => window.__game.state());
       const sim = (s) => page.evaluate((x) => window.__game.sim(x), s);
       // throttle lever: click the 100% detent label
@@ -145,12 +146,13 @@ export const scenarios = [
     url: 'index.html?test=1&side=concord&ship=halberd',
     async run(page, t) {
       await page.waitForFunction(() => window.__game?.state?.().ship, null, { timeout: 30000 });
+      await page.evaluate(() => { window.__game.game.ai.enabled = false; });
       const st = () => page.evaluate(() => window.__game.state());
       const sim = (s) => page.evaluate((x) => window.__game.sim(x), s);
       // park the Varr Tolun 9 km off the bow, broadside on
       await page.evaluate(() => {
         const g = window.__game.game, v = g.ships.find((s) => s.cls === 'varr');
-        v.root.position.set(0, 300, 9000); v.root.rotation.set(0, Math.PI / 2, 0); v.root.updateMatrixWorld(); v.inv.copy(v.root.matrixWorld).invert();
+        v.root.position.set(0, 300, 9000); v.root.rotation.set(0, Math.PI / 2, 0); v.vel.set(0, 0, 0); v.aiThrottle = 0; v.ctl.steer = null; v.root.updateMatrixWorld(); v.inv.copy(v.root.matrixWorld).invert();
       });
       await sim(0.2);
       await page.waitForTimeout(500);
@@ -213,7 +215,7 @@ export const scenarios = [
       await t.shot('gunnery-lance');
       await sim(1.5);
       const hull1 = await page.evaluate(() => window.__game.game.player.target.hull + window.__game.game.player.target.shields.reduce((a, b) => a + b, 0));
-      t.assert(hull1 < hull0 - 2000, `lance beam deals heavy damage (${Math.round(hull0 - hull1)})`);
+      t.assert(hull1 < hull0 - 700, `lance beam deals heavy damage (${Math.round(hull0 - hull1)})`);
       // missiles: launch a VLS salvo at the locked target
       await page.click('.wt[data-t="vls"] .wt-fire');
       s = await st();
@@ -261,6 +263,7 @@ export const scenarios = [
     url: 'index.html?test=1&side=concord&ship=halberd',
     async run(page, t) {
       await page.waitForFunction(() => window.__game?.state?.().ship, null, { timeout: 30000 });
+      await page.evaluate(() => { window.__game.game.ai.enabled = false; });
       const st = () => page.evaluate(() => window.__game.state());
       const sim = (s) => page.evaluate((x) => window.__game.sim(x), s);
       // a hit on the fore shield sector, then recharge after the delay
@@ -272,14 +275,14 @@ export const scenarios = [
       }, dmg);
       await hitFore(3000);
       let s = await st();
-      t.assert(s.shields[0] < 7500 * 0.8 && s.shields[1] === 7500, `fore sector absorbs the hit (${s.shields.map(Math.round)})`);
+      t.assert(s.shields[0] < 7500 - 500 && s.shields[1] === 7500, `fore sector absorbs the hit (${s.shields.map(Math.round)})`);
       const low = s.shields[0];
       await sim(2);
       t.assert((await st()).shields[0] === low, 'no recharge during the delay');
       await sim(8);
       t.assert((await st()).shields[0] > low + 300, 'sector recharges after the delay');
       // knock the fore sector flat: the next hit reaches the hull
-      await hitFore(20000);
+      await hitFore(80000);
       s = await st();
       t.assert(s.shields[0] <= 0 && s.hull < s.maxHull, `shield collapse lets damage through (${Math.round(s.hull)})`);
       // boost a sector by clicking the diagram
@@ -302,7 +305,7 @@ export const scenarios = [
       // staged destruction of a Kesh cruiser near the player
       await page.evaluate(() => {
         const g = window.__game.game, k = g.ships.find((s) => s.cls === 'kesh');
-        k.root.position.set(1800, 600, 5200); k.root.updateMatrixWorld(); k.inv.copy(k.root.matrixWorld).invert();
+        k.root.position.set(1800, 600, 5200); k.vel.set(0, 0, 0); k.aiThrottle = 0; k.root.updateMatrixWorld(); k.inv.copy(k.root.matrixWorld).invert();
         g.player.target = k; k.hull = 1;
         g.camera.yaw = Math.PI * 0.85; g.camera.pitch = 0.25; g.camera.zoom = 1.6;
       });
@@ -331,6 +334,58 @@ export const scenarios = [
       await page.click('.p-shakeoff');
       await page.click('.p-resume');
       t.assert(!(await page.evaluate(() => window.__game.engine.time.paused)), 'resume unpauses');
+    },
+  },
+  {
+    name: 'battle-victory',
+    url: 'index.html?test=1&autoplay=1&side=concord&ship=halberd',
+    async run(page, t) {
+      await page.waitForFunction(() => window.__game?.state?.().ship, null, { timeout: 30000 });
+      await page.evaluate(() => {
+        const ev = (window.__events = { siege: 0, reinf: 0, withdraw: 0, launch: 0 });
+        const b = window.__game.bus;
+        b.on('siege:charging', () => ev.siege++); b.on('ship:spawned', () => ev.reinf++); b.on('ai:withdraw', () => ev.withdraw++); b.on('weapon:launch', () => ev.launch++);
+      });
+      let s;
+      for (let m = 0; m < 28; m++) {
+        s = await page.evaluate(() => { window.__game.sim(30, 1 / 20); return window.__game.state(); });
+        if (m === 4) { await page.waitForTimeout(800); await t.shot('battle-mid'); }
+        if (m === 27) t.log(s.fleet.map((f) => `${f.n}${f.alive ? '' : f.withdrawn ? '(W)' : '(X)'} ${f.hull}`).join(' | '));
+        if (s.over) break;
+      }
+      const ev = await page.evaluate(() => window.__events);
+      t.log(`result ${JSON.stringify(s.result)} events ${JSON.stringify(ev)}`);
+      t.assert(s.over && s.result.victory, `battle ends in victory (${JSON.stringify(s.result)})`);
+      t.assert(s.result.time > 180, `a sustained fight, not a one-shot (${Math.round(s.result.time)} s)`);
+      t.assert(ev.reinf >= 3 && s.reinforced, 'reinforcements jumped in on the flank');
+      t.assert(ev.siege >= 1, 'siege cannon telegraphed its charge');
+      t.assert(ev.launch >= 1, 'missile salvos were launched');
+      await page.waitForSelector('.endscreen.on', { timeout: 20000 });
+      t.assert((await page.textContent('.end-in h1')) === 'VICTORY', 'end screen says VICTORY');
+      t.assert((await page.textContent('.end-stats')).includes('DAMAGE DEALT'), 'end screen shows stats');
+      await t.shot('end-victory');
+      await Promise.all([page.waitForNavigation(), page.click('.end-restart')]);
+      t.assert(page.url().includes('side=concord') && page.url().includes('ship=halberd'), 'restart reloads the same ship');
+      await page.waitForFunction(() => window.__game?.state?.().ship === 'CSV Halberd', null, { timeout: 30000 });
+    },
+  },
+  {
+    name: 'battle-defeat',
+    url: 'index.html?test=1&side=concord&ship=warden',
+    async run(page, t) {
+      await page.evaluate(() => { window.__game.settings.difficulty = 'admiral'; });
+      await page.waitForFunction(() => window.__game?.state?.().ship, null, { timeout: 30000 });
+      // a passive frigate parked in front of the enemy line
+      await page.evaluate(() => { const p = window.__game.game.player; p.root.position.set(0, 200, 14000); p.root.updateMatrixWorld(); });
+      let s;
+      for (let m = 0; m < 20; m++) {
+        s = await page.evaluate(() => { window.__game.sim(30, 1 / 20); return window.__game.state(); });
+        if (s.over) break;
+      }
+      t.assert(s.over && !s.result.victory, `battle ends in defeat (${JSON.stringify(s.result)})`);
+      await page.waitForSelector('.endscreen.on', { timeout: 20000 });
+      t.assert((await page.textContent('.end-in h1')) === 'DEFEAT', 'end screen says DEFEAT');
+      await t.shot('end-defeat');
     },
   },
 ];

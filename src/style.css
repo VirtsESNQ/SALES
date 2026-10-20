@@ -272,3 +272,30 @@ body.scoped .card,body.scoped .look-badge,body.scoped .bracket{visibility:hidden
 .menu-step small{color:var(--dim);letter-spacing:.06em;text-transform:none}
 .p-foot{margin-top:12px;color:var(--dim);font-size:11px}
 @media (max-width:760px){.p-grid{grid-template-columns:1fr}}
+
+/* ---------------- objectives, alerts, end screen ---------------- */
+.objs{left:12px;top:330px;width:300px;padding:9px 12px}
+.ob-h{font-family:var(--f-label);letter-spacing:.2em;color:var(--dim);font-size:11px;margin-bottom:4px}
+.ob{display:flex;gap:8px;align-items:baseline;font-size:11.5px;color:var(--ink);padding:1px 0}
+.ob i{flex:none;width:8px;height:8px;border:1px solid var(--line2);transform:translateY(1px)}
+.ob.main span{font-weight:600;color:#e2ecee}
+.ob.done{color:var(--dim)} .ob.done span{text-decoration:line-through} .ob.done i{background:var(--green);border-color:var(--green)}
+.ob.failed span{color:var(--red)} .ob.failed i{background:var(--red);border-color:var(--red)}
+.ob-hint{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-size:11px;color:#aab8bb;line-height:1.45}
+.ob-hint b{font-family:var(--f-label);letter-spacing:.16em;color:var(--amber);margin-right:8px}
+.alerts{position:fixed;left:50%;top:26%;transform:translateX(-50%);pointer-events:none;z-index:9}
+.al{font-family:var(--f-label);font-weight:700;font-size:22px;letter-spacing:.26em;padding:4px 18px;border:1px solid;background:rgba(10,6,4,.6);white-space:nowrap}
+.al.warn{color:var(--amber);border-color:rgba(217,164,65,.5)} .al.crit{color:var(--red);border-color:rgba(224,87,63,.55);animation:blink .5s steps(2) 4} .al.ok{color:var(--green);border-color:rgba(134,173,108,.5)} .al.info{color:var(--cyan);border-color:var(--line2)}
+@keyframes blink{50%{opacity:.35}}
+.endscreen{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(4,6,8,.78);pointer-events:auto;padding:16px}
+.endscreen.on{display:flex}
+.end-in{width:min(760px,100%);background:var(--panel2);border:1px solid var(--line2);padding:26px 30px}
+.end-in h1{font-family:var(--f-label);font-size:clamp(40px,7vw,72px);letter-spacing:.2em;margin:4px 0}
+.end-in.win h1{color:var(--green)} .end-in.loss h1{color:var(--red)}
+.end-r{color:var(--ink);font-size:14px}
+.end-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0;font-size:18px;color:#e2ecee}
+.end-stats small{display:block;font-family:var(--f-label);letter-spacing:.14em;color:var(--dim);font-size:10px}
+.end-btns{display:flex;gap:10px;align-items:stretch}
+.end-btns .go{margin-top:0;flex:1}
+.end-btns .btn{padding:0 18px;font-size:13px}
+@media (max-width:640px){.end-stats{grid-template-columns:repeat(2,1fr)}}

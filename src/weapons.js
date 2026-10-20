@@ -537,7 +537,7 @@ export class Weapons {
   update(dt) {
     const g = this.game, p = g.player;
     // player: selected battery follows the reticle, others follow doctrine
-    if (p && p.alive) {
+    if (p && p.alive && !p.autopilot) {
       this.updateManualAim();
       const sel = this.selected;
       for (const t of p.mounts) {

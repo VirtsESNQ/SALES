@@ -190,7 +190,7 @@ export class Ship {
 
   physics(dt) {
     const C = this.C, c = this.ctl, ef = this.engineFactor(), q = this.root.quaternion;
-    this.throttle = DETENTS[this.detent].value;
+    this.throttle = this.aiThrottle != null ? this.aiThrottle : DETENTS[this.detent].value;
     // linear motion in the ship frame
     const vl = _v1.copy(this.vel).applyQuaternion(_q1.copy(q).invert());
     let boost = this.boost && !this.boostLock && this.throttle > 0;
@@ -243,6 +243,10 @@ export class Ship {
   update(dt) {
     if (this.gone) return;
     if (!this.dying) this.physics(dt);
+    if (this.arrive > 0) { // dropping out of jump: the hull snaps from a long streak to its true length
+      this.arrive = Math.max(0, this.arrive - dt);
+      this.root.scale.set(1, 1, 1 + (this.arrive / 0.9) ** 2 * 6);
+    }
     this.root.updateMatrixWorld();
     this.inv.copy(this.root.matrixWorld).invert();
     // engines visibly intensify with thrust and while turning
